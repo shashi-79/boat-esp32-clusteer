@@ -5,7 +5,6 @@
 
 #include <Arduino.h>
 #include "config.h"
-#include "../../shared/packets.h"
 
 static uint8_t safetyMode   = MODE_MANUAL;
 static bool    safetyArmed  = false;
@@ -20,19 +19,19 @@ static bool safetyCanArm(uint8_t sats, uint8_t fixType) {
     return true;
 }
 
-// --- Process incoming control packet and determine safe mode ---
-// Called every time a new ControlPacket is received.
-// Returns the effective mode the boat should operate in.
+// --- Process incoming control and determine safe mode ---
 static uint8_t safetyProcess(
-    const ControlPacket& cmd,
-    bool  linkAlive,
-    bool  gpsFix,
+    uint8_t armCmd,
+    uint8_t estopCmd,
+    uint8_t modeCmd,
+    bool    linkAlive,
+    bool    gpsFix,
     uint8_t sats,
     uint8_t fixType,
-    bool  motorBattLow
+    bool    motorBattLow
 ) {
     // --- E-STOP: highest priority, overrides everything ---
-    if (cmd.estop == 1) {
+    if (estopCmd == 1) {
         safetyEstop = true;
         safetyArmed = false;
         safetyMode  = MODE_FAILSAFE;
@@ -41,10 +40,9 @@ static uint8_t safetyProcess(
     }
 
     // --- Clear E-STOP only by explicit DISARM then re-ARM ---
-    // (E-STOP stays latched until power cycle or fresh ARM sequence)
 
     // --- ARM/DISARM ---
-    if (cmd.arm == 1 && !safetyArmed) {
+    if (armCmd == 1 && !safetyArmed) {
         if (safetyCanArm(sats, fixType) && !safetyEstop) {
             safetyArmed = true;
             DBG("Safety: ARMED (sats=%d)", sats);
@@ -52,7 +50,7 @@ static uint8_t safetyProcess(
             DBG("Safety: ARM REJECTED (sats=%d, fix=%d, estop=%d)",
                 sats, fixType, safetyEstop);
         }
-    } else if (cmd.arm == 0 && safetyArmed) {
+    } else if (armCmd == 0 && safetyArmed) {
         safetyArmed = false;
         safetyEstop = false;  // Clear E-STOP latch on explicit disarm
         safetyMode  = MODE_MANUAL;
@@ -86,7 +84,7 @@ static uint8_t safetyProcess(
     }
 
     // --- Manual RTH request from operator ---
-    if (cmd.mode == MODE_RTH) {
+    if (modeCmd == MODE_RTH) {
         safetyMode = MODE_RTH;
         return MODE_RTH;
     }

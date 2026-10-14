@@ -1,7 +1,26 @@
 #pragma once
-// ============================================================
-// Boat Controller — Pin Definitions & Configuration
-// ============================================================
+// --- Wi-Fi SoftAP (Direct Phone & ESP32-CAM Connection) ---
+#define WIFI_SSID           "RescueBoat-GCS"
+#define WIFI_PASSWORD       "rescue2026"
+#define WIFI_CHANNEL        1
+#define WIFI_MAX_CONN       4
+
+// --- Web Server & WebSocket ---
+#define WEB_PORT            80
+#define WS_PATH             "/ws"
+#define CAM_NODE_IP         "192.168.4.2"
+#define CAM_STREAM_PORT     81
+
+// --- Failsafe & Operational Modes ---
+#define FAILSAFE_TIMEOUT_MS 1500   // Trigger RTH if phone disconnects > 1.5s
+#define LOW_BATT_3S_MV      10500  // 3.5V/cell
+#define LOW_BATT_4S_MV      14000  // 3.5V/cell
+#define RTH_CRUISE_PERCENT  30
+#define RTH_ARRIVAL_RADIUS_M 3.0f
+
+#define MODE_MANUAL         0
+#define MODE_RTH            1
+#define MODE_FAILSAFE       2
 
 // --- Motor ESC Pins (Bidirectional, 1500µs neutral) ---
 #define PIN_ESC_LEFT        4

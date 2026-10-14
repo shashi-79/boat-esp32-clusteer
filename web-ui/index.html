@@ -7,17 +7,18 @@
   <style>
     :root {
       --bg-dark: #070b12;
-      --panel-bg: rgba(12, 20, 32, 0.78);
-      --panel-border: rgba(0, 255, 170, 0.22);
+      --panel-bg: rgba(12, 20, 32, 0.82);
+      --panel-border: rgba(0, 255, 170, 0.25);
       --accent-green: #00ffaa;
       --accent-cyan: #00d4ff;
       --accent-red: #ff3366;
       --accent-warn: #ffb700;
+      --accent-phone: #ff9900;
       --text-main: #e2f1ff;
       --text-muted: #7890a8;
       --joy-base: rgba(0, 212, 255, 0.12);
       --joy-border: rgba(0, 212, 255, 0.35);
-      --joy-thumb: rgba(0, 255, 170, 0.45);
+      --joy-thumb: rgba(0, 255, 170, 0.5);
     }
 
     * {
@@ -32,7 +33,7 @@
     body {
       background-color: var(--bg-dark);
       background-image: 
-        radial-gradient(circle at 50% 50%, rgba(0, 50, 80, 0.18) 0%, transparent 80%),
+        radial-gradient(circle at 50% 50%, rgba(0, 50, 80, 0.2) 0%, transparent 80%),
         linear-gradient(rgba(0, 255, 170, 0.03) 1px, transparent 1px),
         linear-gradient(90deg, rgba(0, 255, 170, 0.03) 1px, transparent 1px);
       background-size: 100% 100%, 30px 30px, 30px 30px;
@@ -44,6 +45,23 @@
       display: flex;
       flex-direction: column;
       position: relative;
+    }
+
+    /* Live FPV Camera Stream Background */
+    #fpv-stream {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 1;
+      opacity: 0.78;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+    }
+    #fpv-stream.hidden {
+      display: none;
     }
 
     /* Top Navigation HUD */
@@ -128,6 +146,18 @@
       animation: pulse 1s infinite ease-in-out;
     }
 
+    .badge-btn {
+      cursor: pointer;
+      background: rgba(255, 153, 0, 0.2);
+      border-color: rgba(255, 153, 0, 0.5);
+      color: #ffaa33;
+    }
+    .badge-btn.off {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+      color: var(--text-muted);
+    }
+
     /* Main HUD Screen */
     #hud-container {
       position: absolute;
@@ -136,6 +166,7 @@
       right: 0;
       bottom: 0;
       pointer-events: none;
+      z-index: 10;
     }
 
     /* Left Stats Dashboard */
@@ -144,7 +175,7 @@
       position: absolute;
       top: 14px;
       left: 14px;
-      width: 210px;
+      width: 220px;
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
       border-radius: 10px;
@@ -152,8 +183,8 @@
       padding: 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      gap: 9px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
       z-index: 20;
     }
 
@@ -186,7 +217,7 @@
       color: var(--accent-cyan);
     }
 
-    /* Battery Bar */
+    /* Battery Meter */
     .meter-container {
       margin-top: 2px;
     }
@@ -214,19 +245,19 @@
     .meter-fill.warn { background: var(--accent-warn); }
     .meter-fill.alert { background: var(--accent-red); }
 
-    /* Tactical Radar Minimap */
+    /* Tactical Dual-Gyro Radar Minimap */
     #radar-wrapper {
       pointer-events: auto;
       position: absolute;
       top: 14px;
       right: 14px;
-      width: 180px;
-      height: 180px;
+      width: 190px;
+      height: 190px;
       background: var(--panel-bg);
       border: 1px solid var(--panel-border);
       border-radius: 50%;
       backdrop-filter: blur(12px);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.6);
       z-index: 20;
       overflow: hidden;
     }
@@ -246,11 +277,12 @@
       letter-spacing: 0.5px;
       color: var(--accent-green);
       font-family: monospace;
-      background: rgba(0, 15, 10, 0.7);
+      background: rgba(0, 15, 10, 0.75);
       padding: 1px 6px;
       border-radius: 4px;
       border: 1px solid rgba(0, 255, 170, 0.3);
       pointer-events: none;
+      white-space: nowrap;
     }
 
     /* Joystick Zones */
@@ -329,7 +361,7 @@
       font-family: inherit;
       cursor: pointer;
       outline: none;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
       transition: all 0.15s ease;
       touch-action: manipulation;
     }
@@ -356,18 +388,17 @@
       background: linear-gradient(145deg, #ff3366, #b3103a);
       border-color: #ff99bb;
       color: #ffffff;
-      box-shadow: 0 0 20px rgba(255, 51, 102, 0.5);
+      box-shadow: 0 0 20px rgba(255, 51, 102, 0.6);
     }
     .btn-estop .icon { font-size: 18px; font-weight: bold; }
     .btn-estop .sub { font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-top: 2px; }
 
-    /* Notification banner */
     #alert-toast {
       position: absolute;
       top: 66px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(255, 51, 102, 0.9);
+      background: rgba(255, 51, 102, 0.95);
       border: 1px solid #fff;
       color: #fff;
       padding: 6px 16px;
@@ -378,15 +409,8 @@
       display: none;
       z-index: 100;
       box-shadow: 0 4px 16px rgba(255, 51, 102, 0.6);
-      animation: fadeIn 0.2s ease;
     }
 
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translate(-50%, -8px); }
-      to { opacity: 1; transform: translate(-50%, 0); }
-    }
-
-    /* Simulation toggle banner for standalone browser testing */
     #sim-mode {
       position: absolute;
       bottom: 4px;
@@ -395,11 +419,12 @@
       font-size: 9px;
       color: var(--text-muted);
       opacity: 0.6;
+      z-index: 5;
     }
 
     @media (max-width: 680px) {
-      .dashboard-panel { width: 170px; padding: 8px; font-size: 11px; }
-      #radar-wrapper { width: 140px; height: 140px; }
+      .dashboard-panel { width: 185px; padding: 9px; font-size: 11px; }
+      #radar-wrapper { width: 145px; height: 145px; }
       .joy-container { width: 135px; height: 135px; bottom: 16px; }
       .joy-knob { width: 50px; height: 50px; margin-top: -25px; margin-left: -25px; }
       #joy-left { left: 12px; }
@@ -411,13 +436,17 @@
 </head>
 <body>
 
+  <!-- Live FPV Camera Stream (ESP32-CAM) -->
+  <img id="fpv-stream" src="http://192.168.4.2:81/stream" alt="Live FPV Camera">
+
   <!-- Top Bar -->
   <header>
     <div class="brand">
       <div class="brand-dot"></div>
-      <span>Rescue GCS &bull; LR</span>
+      <span>Rescue GCS</span>
     </div>
     <div class="status-badges">
+      <button id="btn-cam" class="badge badge-btn">CAM: ON</button>
       <div id="badge-link" class="badge badge-conn">DISCONNECTED</div>
       <div id="badge-mode" class="badge badge-mode">MANUAL</div>
     </div>
@@ -455,6 +484,16 @@
       </div>
 
       <div class="stat-row">
+        <span class="stat-label">Boat Heading</span>
+        <span class="stat-val" style="color:var(--accent-green);"><span id="val-hdg">0</span>&deg;</span>
+      </div>
+
+      <div class="stat-row">
+        <span class="stat-label">Phone Gyro</span>
+        <span class="stat-val" style="color:var(--accent-phone);"><span id="val-ph-hdg">0</span>&deg;</span>
+      </div>
+
+      <div class="stat-row">
         <span class="stat-label">GPS Sats / Fix</span>
         <span class="stat-val"><span id="val-sat">0</span> (<span id="val-fix">NO</span>)</span>
       </div>
@@ -462,11 +501,6 @@
       <div class="stat-row">
         <span class="stat-label">Speed</span>
         <span class="stat-val"><span id="val-spd">0.0</span> m/s</span>
-      </div>
-
-      <div class="stat-row">
-        <span class="stat-label">Heading</span>
-        <span class="stat-val"><span id="val-hdg">0</span>&deg;</span>
       </div>
 
       <div class="stat-row">
@@ -480,10 +514,10 @@
       </div>
     </div>
 
-    <!-- 24GHz Tactical Radar Display -->
+    <!-- Dual-Gyro Tactical Radar Minimap -->
     <div id="radar-wrapper">
-      <canvas id="radar-canvas" width="200" height="200"></canvas>
-      <div class="radar-tag">24GHz mmWave</div>
+      <canvas id="radar-canvas" width="220" height="220"></canvas>
+      <div class="radar-tag">BOAT &bull; PHONE GYRO</div>
     </div>
 
     <!-- Left Virtual Joystick: Throttle (Y) + Yaw (X) -->
@@ -513,7 +547,7 @@
 
   </div>
 
-  <div id="sim-mode">Connected to Shore Station AP (192.168.4.1)</div>
+  <div id="sim-mode">Connected to S3 AP (192.168.4.1)</div>
 
   <script>
     // System State
@@ -522,9 +556,16 @@
     let isEstop = false;
     let driveState = { throttle: 0, yaw: 0 };
     let gimbalState = { pan: 0, tilt: 0 };
+
+    // Orientation State
+    let phoneHeading = 0;        // Phone gyroscope compass heading (0-359 deg)
+    let phoneSensorActive = false;
+
     let lastTelemetry = {
       vm: 12400,
       vl: 8100,
+      cur: 0,
+      pct: 95,
       sat: 0,
       fix: 0,
       hdg: 0,
@@ -546,13 +587,72 @@
     const btnArm = document.getElementById('btn-arm');
     const labelArm = document.getElementById('label-arm');
     const btnEstop = document.getElementById('btn-estop');
+    const btnCam = document.getElementById('btn-cam');
+    const fpvStream = document.getElementById('fpv-stream');
     const alertToast = document.getElementById('alert-toast');
     const canvas = document.getElementById('radar-canvas');
     const ctx = canvas.getContext('2d');
 
-    // Setup WebSocket
+    // Camera Toggle
+    let camVisible = true;
+    btnCam.addEventListener('click', () => {
+      camVisible = !camVisible;
+      if (camVisible) {
+        fpvStream.classList.remove('hidden');
+        btnCam.textContent = 'CAM: ON';
+        btnCam.className = 'badge badge-btn';
+      } else {
+        fpvStream.classList.add('hidden');
+        btnCam.textContent = 'CAM: OFF';
+        btnCam.className = 'badge badge-btn off';
+      }
+    });
+
+    // Camera Reconnect Handler
+    fpvStream.onerror = () => {
+      // Retry stream connection if camera is booting
+      setTimeout(() => {
+        if (camVisible) {
+          fpvStream.src = `http://192.168.4.2:81/stream?t=${Date.now()}`;
+        }
+      }, 3000);
+    };
+
+    // Phone Gyroscope / Compass Listener
+    function initPhoneOrientation() {
+      const handleOrientation = (e) => {
+        phoneSensorActive = true;
+        let heading = 0;
+
+        if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+          // iOS Safari (degrees clockwise from True North)
+          heading = e.webkitCompassHeading;
+        } else if (e.alpha !== null && e.alpha !== undefined) {
+          // Android Chrome / Standard
+          heading = 360 - e.alpha;
+        }
+
+        phoneHeading = Math.round((heading + 360) % 360);
+        document.getElementById('val-ph-hdg').textContent = phoneHeading;
+      };
+
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        document.body.addEventListener('click', () => {
+          DeviceOrientationEvent.requestPermission().then(state => {
+            if (state === 'granted') {
+              window.addEventListener('deviceorientation', handleOrientation, true);
+            }
+          }).catch(console.error);
+        }, { once: true });
+      } else {
+        window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+        window.addEventListener('deviceorientation', handleOrientation, true);
+      }
+    }
+    initPhoneOrientation();
+
+    // WebSocket Connection to S3
     function connectWS() {
-      // If hosted on ESP32
       const host = window.location.host || '192.168.4.1';
       const wsUrl = `ws://${host}/ws`;
 
@@ -567,7 +667,7 @@
         badgeLink.textContent = 'CONNECTED';
         badgeLink.classList.add('online');
         simActive = false;
-        document.getElementById('sim-mode').textContent = 'ESP-NOW LR Active Link';
+        document.getElementById('sim-mode').textContent = 'Direct Wi-Fi Active Link';
       };
 
       ws.onclose = () => {
@@ -593,7 +693,7 @@
       };
     }
 
-    // Fallback Mock Simulation when opened without hardware
+    // Fallback Simulation Preview
     function enableSimulation() {
       if (simActive) return;
       simActive = true;
@@ -611,17 +711,24 @@
         lastTelemetry.fix = 3;
         lastTelemetry.hdg = (lastTelemetry.hdg + 1) % 360;
         lastTelemetry.spd = 145;
-        lastTelemetry.hd = 48.5;
-        lastTelemetry.hb = 135;
+        lastTelemetry.hd = 35.0 + Math.sin(Date.now() / 2000) * 5.0;
+        lastTelemetry.hb = (lastTelemetry.hb + 0.5) % 360;
         lastTelemetry.rd = 3.8 + Math.sin(Date.now() / 1500) * 1.5;
         lastTelemetry.ra = 15;
+
+        // Simulate phone rotation if sensor unavailable on PC
+        if (!phoneSensorActive) {
+          phoneHeading = (phoneHeading + 0.8) % 360;
+          document.getElementById('val-ph-hdg').textContent = Math.round(phoneHeading);
+        }
+
         updateDashboard(lastTelemetry);
       }, 200);
     }
 
     // Dashboard Telemetry Render
     function updateDashboard(t) {
-      // Motor Voltage, Current & Percentage (INA219 live reading)
+      // Motor Voltage, Current & Percentage
       const vmVal = (t.vm / 1000).toFixed(1);
       const curVal = ((t.cur || 0) / 1000).toFixed(1);
       const pctVal = t.pct !== undefined ? t.pct : Math.round(Math.max(0, Math.min(100, ((t.vm - 9900) / (12600 - 9900)) * 100)));
@@ -634,13 +741,12 @@
       barVm.style.width = `${pctVal}%`;
       barVm.className = 'meter-fill' + (pctVal < 20 ? ' alert' : pctVal < 40 ? ' warn' : '');
 
-      // Logic Voltage (2S: 6.6V empty, 8.4V full)
+      // Logic Voltage (2S)
       const vlVal = (t.vl / 1000).toFixed(1);
       document.getElementById('val-vl').textContent = `${vlVal} V`;
       const vlPercent = Math.max(0, Math.min(100, ((t.vl - 6600) / (8400 - 6600)) * 100));
       const barVl = document.getElementById('bar-vl');
       barVl.style.width = `${vlPercent}%`;
-      barVl.className = 'meter-fill' + (vlPercent < 20 ? ' alert' : vlPercent < 40 ? ' warn' : '');
 
       // GPS Sats and Fix
       document.getElementById('val-sat').textContent = t.sat || 0;
@@ -675,15 +781,15 @@
       }
     }
 
-    // Radar Minimap Drawing
+    // Tactical Radar Minimap Drawing (Both Boat & Phone Gyroscopes)
     function renderRadar() {
       const cx = canvas.width / 2;
       const cy = canvas.height / 2;
-      const maxR = cx - 8;
+      const maxR = cx - 12;
 
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Range rings
+      // 1. Concentric Range Rings
       ctx.strokeStyle = 'rgba(0, 255, 170, 0.2)';
       ctx.lineWidth = 1;
       for (let i = 1; i <= 3; i++) {
@@ -692,72 +798,141 @@
         ctx.stroke();
       }
 
-      // Crosshairs
+      // 2. Crosshairs
       ctx.strokeStyle = 'rgba(0, 255, 170, 0.12)';
       ctx.beginPath();
-      ctx.moveTo(cx, cy - maxR);
-      ctx.lineTo(cx, cy + maxR);
-      ctx.moveTo(cx - maxR, cy);
-      ctx.lineTo(cx + maxR, cy);
+      ctx.moveTo(cx, cy - maxR); ctx.lineTo(cx, cy + maxR);
+      ctx.moveTo(cx - maxR, cy); ctx.lineTo(cx + maxR, cy);
       ctx.stroke();
 
-      // Sweeping beam effect
+      // 3. Cardinal Direction Labels on Perimeter
+      ctx.fillStyle = '#00ffaa';
+      ctx.font = 'bold 9px monospace';
+      ctx.fillText('N', cx - 3, cy - maxR + 9);
+      ctx.fillStyle = 'rgba(0, 255, 170, 0.4)';
+      ctx.fillText('S', cx - 3, cy + maxR - 2);
+      ctx.fillText('E', cx + maxR - 8, cy + 3);
+      ctx.fillText('W', cx - maxR + 2, cy + 3);
+
+      // 4. Sweeping Beam Effect
       radarSweepAngle = (radarSweepAngle + 0.05) % (Math.PI * 2);
       const sweepGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, maxR);
       sweepGrad.addColorStop(0, 'rgba(0, 255, 170, 0)');
       sweepGrad.addColorStop(1, 'rgba(0, 255, 170, 0.12)');
-
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(cx, cy);
-      ctx.arc(cx, cy, maxR, radarSweepAngle, radarSweepAngle + 0.5);
+      ctx.arc(cx, cy, maxR, radarSweepAngle, radarSweepAngle + 0.45);
       ctx.closePath();
       ctx.fillStyle = sweepGrad;
       ctx.fill();
       ctx.restore();
 
-      // Heading indicator (Boat arrow)
-      const hdgRad = ((lastTelemetry.hdg || 0) * Math.PI) / 180;
+      // 5. Boat Gyroscope Heading (Center Boat Icon pointing with BNO055 heading)
+      const boatHdgRad = ((lastTelemetry.hdg || 0) * Math.PI) / 180;
       ctx.save();
       ctx.translate(cx, cy);
-      ctx.rotate(hdgRad);
+      ctx.rotate(boatHdgRad);
+
+      // Boat Hull Shape
       ctx.fillStyle = '#00ffaa';
+      ctx.shadowColor = '#00ffaa';
+      ctx.shadowBlur = 8;
       ctx.beginPath();
-      ctx.moveTo(0, -12);
-      ctx.lineTo(7, 8);
-      ctx.lineTo(0, 4);
-      ctx.lineTo(-7, 8);
+      ctx.moveTo(0, -14);       // Bow tip
+      ctx.lineTo(7, 8);         // Starboard stern
+      ctx.lineTo(0, 4);          // Transom indent
+      ctx.lineTo(-7, 8);        // Port stern
       ctx.closePath();
       ctx.fill();
+      ctx.shadowBlur = 0;
       ctx.restore();
 
-      // Home Waypoint marker (Star)
-      if (lastTelemetry.hd !== undefined && lastTelemetry.hb !== undefined) {
-        const hbRad = ((lastTelemetry.hb || 0) * Math.PI) / 180;
-        const distClamped = Math.min(lastTelemetry.hd, 150);
-        const homeR = (distClamped / 150) * (maxR - 10);
-        const hx = cx + Math.sin(hbRad) * homeR;
-        const hy = cy - Math.cos(hbRad) * homeR;
+      // Boat Azimuth Tick on Outer Ring (Green)
+      const bTickX = cx + Math.sin(boatHdgRad) * maxR;
+      const bTickY = cy - Math.cos(boatHdgRad) * maxR;
+      ctx.fillStyle = '#00ffaa';
+      ctx.beginPath();
+      ctx.arc(bTickX, bTickY, 2.5, 0, Math.PI * 2);
+      ctx.fill();
 
-        ctx.fillStyle = '#00d4ff';
-        ctx.font = 'bold 12px monospace';
-        ctx.fillText('★', hx - 5, hy + 4);
+      // 6. Operator Phone Gyroscope Direction
+      // Position of Phone/Home relative to Boat
+      let hx = cx, hy = cy + 45;
+      if (lastTelemetry.hd !== undefined && lastTelemetry.hb !== undefined && lastTelemetry.hd > 0) {
+        const hbRad = ((lastTelemetry.hb || 0) * Math.PI) / 180;
+        const distClamped = Math.min(lastTelemetry.hd, 100);
+        const homeR = (distClamped / 100) * (maxR - 14);
+        hx = cx + Math.sin(hbRad) * homeR;
+        hy = cy - Math.cos(hbRad) * homeR;
       }
 
-      // 24GHz Radar Obstacle blip (Red dot)
+      // Dashed Line from Boat to Phone
+      ctx.strokeStyle = 'rgba(255, 153, 0, 0.25)';
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(hx, hy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Phone Heading (Angle from True North)
+      const phoneHdgRad = (phoneHeading * Math.PI) / 180;
+
+      // Vision / Gyro Cone from Phone (40-degree field of view sector)
+      ctx.save();
+      ctx.translate(hx, hy);
+      ctx.rotate(phoneHdgRad);
+
+      const coneGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, 28);
+      coneGrad.addColorStop(0, 'rgba(255, 153, 0, 0.55)');
+      coneGrad.addColorStop(1, 'rgba(255, 153, 0, 0)');
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.arc(0, 0, 28, -Math.PI / 2 - 0.35, -Math.PI / 2 + 0.35);
+      ctx.closePath();
+      ctx.fillStyle = coneGrad;
+      ctx.fill();
+
+      // Phone Heading Pointer Line
+      ctx.strokeStyle = '#ffaa33';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(0, -16);
+      ctx.stroke();
+
+      // Phone Body Icon
+      ctx.fillStyle = '#ffaa33';
+      ctx.shadowColor = '#ffaa33';
+      ctx.shadowBlur = 6;
+      ctx.fillRect(-3.5, -5, 7, 10);
+      ctx.fillStyle = '#070b12';
+      ctx.fillRect(-2.5, -4, 5, 8);
+      ctx.shadowBlur = 0;
+      ctx.restore();
+
+      // Phone Azimuth Tick on Outer Ring (Amber)
+      const pTickX = cx + Math.sin(phoneHdgRad) * maxR;
+      const pTickY = cy - Math.cos(phoneHdgRad) * maxR;
+      ctx.fillStyle = '#ffaa33';
+      ctx.beginPath();
+      ctx.arc(pTickX, pTickY, 3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 7. 24GHz mmWave Radar Obstacle Blip (Red Dot)
       if (lastTelemetry.rd && lastTelemetry.rd > 0 && lastTelemetry.rd <= 8.0) {
         const raRad = (((lastTelemetry.ra || 0) + (lastTelemetry.hdg || 0)) * Math.PI) / 180;
-        const obstacleR = (lastTelemetry.rd / 8.0) * (maxR - 8);
+        const obstacleR = (lastTelemetry.rd / 8.0) * (maxR - 10);
         const ox = cx + Math.sin(raRad) * obstacleR;
         const oy = cy - Math.cos(raRad) * obstacleR;
 
-        // Blip glow
-        const glow = ctx.createRadialGradient(ox, oy, 1, ox, oy, 8);
+        const glow = ctx.createRadialGradient(ox, oy, 1, ox, oy, 9);
         glow.addColorStop(0, '#ff3366');
         glow.addColorStop(1, 'rgba(255, 51, 102, 0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
-        ctx.arc(ox, oy, 8, 0, Math.PI * 2);
+        ctx.arc(ox, oy, 9, 0, Math.PI * 2);
         ctx.fill();
 
         ctx.fillStyle = '#ffffff';
@@ -789,7 +964,6 @@
 
         knob.style.transform = `translate(${kx}px, ${ky}px)`;
 
-        // Normalize -1000 to +1000
         const normX = Math.round((kx / radius) * 1000);
         const normY = Math.round((-ky / radius) * 1000); // Inverted Y: up is positive
         onMove(normX, normY);
@@ -852,13 +1026,12 @@
       });
     }
 
-    // Attach Left Joystick: Throttle (Y), Yaw (X)
+    // Attach Joysticks
     initJoystick('joy-left', 'knob-left', (x, y) => {
       driveState.throttle = y;
       driveState.yaw = x;
     });
 
-    // Attach Right Joystick: Pan (X), Tilt (Y)
     initJoystick('joy-right', 'knob-right', (x, y) => {
       gimbalState.pan = x;
       gimbalState.tilt = y;
@@ -883,12 +1056,11 @@
       btnArm.classList.remove('armed');
       labelArm.textContent = 'ARM';
 
-      // Alert toast
       alertToast.style.display = 'block';
       setTimeout(() => { alertToast.style.display = 'none'; }, 2000);
     });
 
-    // 25Hz Control TX Loop (Every 40ms)
+    // 25Hz Control TX Loop to S3 WebSocket (includes Phone Heading)
     setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         const packet = {
@@ -898,10 +1070,11 @@
           i: gimbalState.tilt,
           a: isArmed ? 1 : 0,
           e: isEstop ? 1 : 0,
-          m: 0
+          m: 0,
+          ph: phoneHeading
         };
         ws.send(JSON.stringify(packet));
-        if (isEstop) isEstop = false; // Reset one-shot latch
+        if (isEstop) isEstop = false;
       }
     }, 40);
 

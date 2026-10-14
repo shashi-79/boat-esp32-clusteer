@@ -1,14 +1,17 @@
 // ============================================================
 // BOAT CONTROLLER — Main Entry Point (ESP32-S3)
 // ============================================================
-// Architecture: Non-blocking cooperative loop
-// Each module has setup() and update() — NO delay() calls.
+// Architecture:
+//   1. Hosts Wi-Fi SoftAP ("RescueBoat-GCS") for direct Phone & ESP32-CAM connection
+//   2. Serves Tactical Web GCS HUD (Joysticks, Minimap, FPV stream)
+//   3. Non-blocking cooperative loop: IMU, GPS, mmWave Radar, Battery, Servos, Motors
+//   4. Autonomous Safety & Return-To-Home (RTH) on phone disconnect (>1.5s)
 // ============================================================
 
 #include <Arduino.h>
+#include <WiFi.h>
 #include "config.h"
-#include "../../shared/packets.h"
-#include "radio.h"
+#include "webserver.h"
 #include "motors.h"
 #include "servos.h"
 #include "gps.h"
@@ -19,28 +22,39 @@
 #include "rth.h"
 
 // --- Timing intervals (milliseconds) ---
-static const uint32_t INTERVAL_TELEMETRY  = 1000 / TELEMETRY_SEND_HZ;   // 200ms
-static const uint32_t INTERVAL_BATTERY    = 100;                          // 10 Hz
-static const uint32_t INTERVAL_IMU        = 20;                           // 50 Hz
-static const uint32_t INTERVAL_MOTORS     = 20;                           // 50 Hz
+static const uint32_t INTERVAL_TELEMETRY = 200;  // 5 Hz
+static const uint32_t INTERVAL_BATTERY   = 100;  // 10 Hz
+static const uint32_t INTERVAL_IMU       = 20;   // 50 Hz
+static const uint32_t INTERVAL_MOTORS    = 20;   // 50 Hz
+static const uint32_t INTERVAL_CLEANUP   = 1000; // 1 Hz
 
 static uint32_t lastTelemetry = 0;
 static uint32_t lastBattery   = 0;
 static uint32_t lastImu       = 0;
 static uint32_t lastMotors    = 0;
+static uint32_t lastCleanup   = 0;
 
-// Track whether RTH PID was just activated
 static bool rthActive = false;
 
 void setup() {
     Serial.begin(115200);
-    delay(500);  // Allow USB CDC to connect
+    delay(500);  // USB CDC settling
 
     Serial.println("========================================");
-    Serial.println("  RESCUE BOAT — Boat Controller v1.0");
+    Serial.println("  RESCUE BOAT — S3 Controller v2.0");
     Serial.println("========================================");
 
-    radioSetup();
+    // 1. Start Wi-Fi SoftAP for Phone and ESP32-CAM
+    WiFi.mode(WIFI_AP);
+    WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL, 0, WIFI_MAX_CONN);
+    IPAddress apIP = WiFi.softAPIP();
+    Serial.printf("[WIFI] SoftAP: '%s' | IP: %s | Pass: '%s'\n",
+        WIFI_SSID, apIP.toString().c_str(), WIFI_PASSWORD);
+
+    // 2. Start Web Server and WebSocket
+    webSetup();
+
+    // 3. Initialize Boat Hardware Modules
     motorsSetup();
     servosSetup();
     gpsSetup();
@@ -49,59 +63,59 @@ void setup() {
     batterySetup();
 
     Serial.println("[BOOT] All systems initialized.");
-    Serial.println("[BOOT] Waiting for shore station link...");
+    Serial.printf("[BOOT] Connect phone to '%s' and open http://%s\n",
+        WIFI_SSID, apIP.toString().c_str());
 }
 
 void loop() {
     uint32_t now = millis();
 
-    // --- Always-run: GPS and Radar feed (byte-by-byte, non-blocking) ---
+    // --- Always-run: GPS and Radar byte streaming ---
     gpsUpdate();
     radarUpdate();
 
-    // --- 50 Hz: IMU heading update ---
+    // --- 50 Hz: IMU / Compass heading update ---
     if (now - lastImu >= INTERVAL_IMU) {
         lastImu = now;
         imuUpdate();
     }
 
-    // --- 10 Hz: Battery voltage reading ---
+    // --- 10 Hz: Battery voltage and current monitor ---
     if (now - lastBattery >= INTERVAL_BATTERY) {
         lastBattery = now;
         batteryUpdate();
     }
 
-    // --- 50 Hz: Motor / Servo control loop ---
+    // --- 50 Hz: Motor & Servo Control Loop ---
     if (now - lastMotors >= INTERVAL_MOTORS) {
         lastMotors = now;
 
-        // Run safety layer to determine current mode
+        // Safety layer determines active mode (handles phone disconnect failsafe)
         uint8_t mode = safetyProcess(
-            rxControl,
-            radioIsLinked(),
+            ctrlArm,
+            ctrlEstop,
+            ctrlMode,
+            webIsPhoneConnected(),
             gpsHasFix(),
             gpsSats(),
             gpsFixType(),
             batteryMotorLow()
         );
 
-        // --- ARM event: set Home ---
+        // Record Home GPS coordinate upon ARM
         if (safetyIsArmed() && !homeSet) {
             gpsSetHome();
         }
 
-        // --- Mode-based motor control ---
+        // Execute mode-based motor commands
         switch (mode) {
             case MODE_MANUAL:
                 if (safetyIsArmed()) {
-                    // Pass joystick inputs through to motors
-                    motorsMix(rxControl.throttle, rxControl.yaw);
-                    // Camera servos always respond
-                    servosSetCamera(rxControl.cam_pan, rxControl.cam_tilt);
+                    motorsMix(ctrlThrottle, ctrlYaw);
+                    servosSetCamera(ctrlCamPan, ctrlCamTilt);
                 } else {
-                    // Disarmed: motors neutral, servos still work
                     motorsSetNeutral();
-                    servosSetCamera(rxControl.cam_pan, rxControl.cam_tilt);
+                    servosSetCamera(ctrlCamPan, ctrlCamTilt);
                 }
                 rthActive = false;
                 break;
@@ -110,7 +124,7 @@ void loop() {
                 if (!rthActive) {
                     rthReset();
                     rthActive = true;
-                    DBG("Main: RTH mode ACTIVATED");
+                    DBG("Safety: Entering autonomous RTH");
                 }
                 {
                     float dist    = gpsDistanceToHome();
@@ -122,18 +136,16 @@ void loop() {
 
                     if (rthHasArrived(dist)) {
                         motorsSetNeutral();
-                        DBG("Main: RTH ARRIVED — motors neutral");
+                        DBG("RTH: Arrived within 3m radius");
                     } else {
                         motorsMix(throttle, yaw);
                     }
                 }
-                // Camera centers during RTH
                 servosCenterAll();
                 break;
 
             case MODE_FAILSAFE:
             default:
-                // All motors and servos to safe state
                 motorsSetNeutral();
                 servosCenterAll();
                 rthActive = false;
@@ -141,35 +153,33 @@ void loop() {
         }
     }
 
-    // --- 5 Hz: Send telemetry to shore ---
+    // --- 5 Hz: Send Telemetry to Phone via WebSocket ---
     if (now - lastTelemetry >= INTERVAL_TELEMETRY) {
         lastTelemetry = now;
 
-        // Populate telemetry packet
-        txTelemetry.lat          = gpsLat();
-        txTelemetry.lon          = gpsLon();
-        txTelemetry.heading      = (int16_t)imuGetHeading();
-        txTelemetry.speed        = (int16_t)gpsSpeed();
-        txTelemetry.v_motor_mv   = batteryMotorMv();
-        txTelemetry.v_logic_mv   = batteryLogicMv();
-        txTelemetry.current_ma   = batteryCurrentMa();
-        txTelemetry.batt_percent = batteryPercentage();
-        txTelemetry.radar_dist   = radarGetDist();
-        txTelemetry.radar_angle  = radarGetAngle();
-        txTelemetry.sats         = gpsSats();
-        txTelemetry.fix_type     = gpsFixType();
-        txTelemetry.armed        = safetyIsArmed() ? 1 : 0;
-        txTelemetry.mode         = safetyGetMode();
-        txTelemetry.home_dist    = gpsDistanceToHome();
-        txTelemetry.home_bearing = (int16_t)gpsBearingToHome();
+        webSendTelemetry(
+            batteryMotorMv(),
+            batteryLogicMv(),
+            batteryCurrentMa(),
+            batteryPercentage(),
+            gpsSats(),
+            gpsFixType(),
+            (int16_t)imuGetHeading(),
+            (int16_t)gpsSpeed(),
+            gpsLat(),
+            gpsLon(),
+            gpsDistanceToHome(),
+            (int16_t)gpsBearingToHome(),
+            radarGetDist(),
+            radarGetAngle(),
+            safetyIsArmed() ? 1 : 0,
+            safetyGetMode()
+        );
+    }
 
-        radioSendTelemetry();
-
-        // Debug print
-        DBG("Telem: sats=%d fix=%d armed=%d mode=%d batt=%dmV (%d%%, %dmA) heading=%d dist=%.1fm",
-            txTelemetry.sats, txTelemetry.fix_type,
-            txTelemetry.armed, txTelemetry.mode,
-            txTelemetry.v_motor_mv, txTelemetry.batt_percent, txTelemetry.current_ma,
-            txTelemetry.heading, txTelemetry.home_dist);
+    // --- 1 Hz: Cleanup Dead WebSocket Clients ---
+    if (now - lastCleanup >= INTERVAL_CLEANUP) {
+        lastCleanup = now;
+        webCleanup();
     }
 }
