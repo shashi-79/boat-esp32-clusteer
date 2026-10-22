@@ -12,6 +12,7 @@ Dual-ESP rescue boat with direct smartphone Wi-Fi connection (40–70m range):
 ```
 boat-esp32-clusteer/
 ├── ARCHITECTURE.md          # System design, pin maps, dual-ESP topology
+├── CIRCUIT.md               # Circuit diagrams, full pinout & wiring schematics
 ├── AGENT.md                 # Project guide for agents
 ├── TEST.md                  # Testing procedures and checklists
 ├── platformio.ini           # PlatformIO multi-environment config (boat, cam)
