@@ -1,116 +1,120 @@
-# Rescue Boat — Test Plan
+# Rescue Boat — Test Plan (Dual-ESP Direct Wi-Fi)
 
 ## Phase 1: Bench Tests (No Water, No Motors)
 
-### T1.1 ESP-NOW LR Link Test
-- [ ] Flash both boards with radio-only firmware.
-- [ ] Shore sends ControlPacket every 40ms (25 Hz).
-- [ ] Boat receives and echoes TelemetryPacket back.
-- [ ] Verify: Serial monitor shows round-trip packets.
-- [ ] Verify: Packet loss < 1% at 1 meter distance.
-- [ ] Walk 50m apart → verify link holds.
-- **Pass criteria:** Bidirectional packets flowing, checksum valid.
+### T1.1 SoftAP & Web GCS Link Test
+- [ ] Power Boat Controller (ESP32-S3).
+- [ ] On smartphone, scan Wi-Fi networks → verify `RescueBoat-GCS` appears.
+- [ ] Connect with password `rescue2026`.
+- [ ] Open phone browser at `http://192.168.4.1`.
+- [ ] Verify: Web GCS HUD loads with joysticks, battery gauges, and radar disc.
+- [ ] Verify: Link badge turns green (**CONNECTED**).
+- **Pass criteria:** Web UI loads within 2 seconds; WebSocket handshake succeeds.
 
-### T1.2 Failsafe Timeout Test
-- [ ] Boat receiving packets normally.
-- [ ] Disconnect Shore ESP32 (power off).
-- [ ] Verify: Boat serial prints "SIGNAL LOST" within 1500ms.
-- [ ] Verify: Motor PWM outputs go to 1500µs (neutral).
-- [ ] Reconnect Shore → verify boat resumes normal mode.
-- **Pass criteria:** Failsafe triggers in < 2 seconds, recovers on reconnect.
+### T1.2 ESP32-CAM Video Stream Test
+- [ ] Power ESP32-CAM module (dedicated 5V BEC).
+- [ ] Verify S3 serial log shows client connected (`192.168.4.2`).
+- [ ] In phone browser, check FPV video backdrop renders behind HUD.
+- [ ] Tap **CAM: ON / OFF** in header → verify video hides and restores.
+- **Pass criteria:** Live video stream displays smoothly with < 300ms latency.
 
-### T1.3 ESC PWM Output Test (No Propellers!)
+### T1.3 Dual-Gyroscope Minimap Test
+- [ ] Rotate boat board physically 360 degrees:
+  - Verify: Green boat arrow in center of radar disc rotates smoothly to match compass.
+  - Verify: Serial shows heading increasing 0° → 90° → 180° → 270° → 360°.
+- [ ] Hold phone and rotate body 360 degrees:
+  - Verify: Amber phone icon and 40° vision cone rotate to match phone's physical direction.
+  - Verify: Phone heading stat (`Phone Gyro`) updates in real time.
+- **Pass criteria:** Both boat and phone headings track physical movements independently without lag or drift.
+
+### T1.4 Wi-Fi Disconnect Failsafe Test
+- [ ] Connect phone, verify system is receiving packets.
+- [ ] Disconnect phone Wi-Fi or walk out of range.
+- [ ] Observe S3 serial monitor:
+  - Within 1500ms: serial logs `Safety: SIGNAL LOST`.
+  - Mode switches from `MODE_MANUAL` to `MODE_RTH` (or `MODE_FAILSAFE` if no GPS fix).
+  - Motor outputs immediately command neutral (1500µs).
+- [ ] Reconnect phone Wi-Fi → verify boat resumes normal communication.
+- **Pass criteria:** Failsafe engages within 1.5 seconds of signal loss.
+
+### T1.5 ESC PWM Output Test (No Propellers!)
 - [ ] ESCs powered, propellers REMOVED.
-- [ ] Send throttle=0, yaw=0 → both ESCs read 1500µs.
-- [ ] Send throttle=500, yaw=0 → both ESCs read ~1750µs (forward).
-- [ ] Send throttle=-500, yaw=0 → both ESCs read ~1250µs (reverse).
-- [ ] Send throttle=0, yaw=500 → left=1750, right=1250 (spin right).
-- [ ] Send E-STOP → both ESCs snap to 1500µs.
+- [ ] Drag throttle forward → both ESCs output > 1500µs.
+- [ ] Drag throttle reverse → both ESCs output < 1500µs.
+- [ ] Steer left/right → differential mixing modulates left and right outputs.
+- [ ] Tap **E-STOP** on phone → both ESCs immediately lock to neutral (1500µs).
 - **Pass criteria:** Differential mixing math correct, E-STOP instant.
 
-### T1.4 Servo Test
-- [ ] Send cam_pan sweep -1000 to +1000.
-- [ ] Send cam_tilt sweep -1000 to +1000.
-- [ ] Verify: Servos move smoothly across full range.
-- **Pass criteria:** No jitter, no buzzing at endpoints.
+### T1.6 Gimbal Servo Test
+- [ ] Drag right joystick pan (X) sweep -1000 to +1000.
+- [ ] Drag right joystick tilt (Y) sweep -1000 to +1000.
+- [ ] Verify: Servos move smoothly across full range without jitter.
+- **Pass criteria:** Smooth servo movement, camera centers when released or in RTH.
 
-### T1.5 GPS Lock Test
-- [ ] Place GPS antenna near window / outdoors.
-- [ ] Verify: Serial prints satellite count increasing.
-- [ ] Wait for fix_type=3 (3D fix) and sats >= 6.
-- [ ] Verify: Lat/Lon values are sane (not 0.0 / NaN).
-- **Pass criteria:** 3D fix within 60 seconds outdoors.
+### T1.7 GPS Lock & Home Vector Test
+- [ ] Place GPS antenna outdoors with clear sky view.
+- [ ] Wait for `Fix: 3D` and `Sats >= 6`.
+- [ ] Tap **ARM** button on phone:
+  - Verify: Home coordinates are captured at current GPS position.
+  - Verify: Home distance reads `0m`.
+- [ ] Walk board 20m away → verify Home Distance reads ~20m and bearing points back to start.
+- **Pass criteria:** 3D fix within 60s, Home waypoint captured on ARM.
 
-### T1.6 Compass Heading Test
-- [ ] Read heading while rotating board 360 degrees slowly.
-- [ ] Verify: Heading increases 0 → 90 → 180 → 270 → 360.
-- [ ] Verify: No stuck values or sudden jumps > 30 degrees.
-- **Pass criteria:** Smooth monotonic heading rotation.
+### T1.8 24GHz mmWave Radar Obstacle Test
+- [ ] Place cardboard box 2 meters in front of radar sensor.
+- [ ] Verify: Radar stat shows `~2.0m` and a red obstacle blip renders on the minimap.
+- [ ] Move box closer to 1m → verify distance decreases.
+- [ ] Remove box → verify radar stat shows `CLEAR`.
+- **Pass criteria:** Distance reads within ±0.3m.
 
-### T1.7 Radar Obstacle Test
-- [ ] Place a cardboard box 3 meters in front of radar.
-- [ ] Verify: Serial prints distance ~3.0m ± 0.5m.
-- [ ] Move box to 1 meter → verify ~1.0m.
-- [ ] Remove box → verify no target or > 8m.
-- **Pass criteria:** Distance reads within ±0.5m accuracy.
+### T1.9 INA219 Battery Monitor Test
+- [ ] Power system from charged 3S LiPo pack (~12.4V).
+- [ ] Check HUD battery panel:
+  - Voltage reads accurate within ±0.05V (e.g., `12.4V`).
+  - True percentage reflects LiPo curve (e.g., `92%`).
+  - Current shows live motor draw in Amps.
+- **Pass criteria:** Voltage, current, and non-linear percentage calculate accurately.
 
-### T1.8 Battery ADC Test
-- [ ] Connect known voltage source (e.g., bench supply at 11.1V).
-- [ ] Verify: Serial prints voltage within ±0.2V of actual.
-- [ ] Test low-battery threshold trigger.
-- **Pass criteria:** Voltage accurate, low-batt alarm fires correctly.
+---
 
-### T1.9 Web UI + WebSocket Test
-- [ ] Phone connects to Shore ESP32 Wi-Fi.
-- [ ] Open browser → 192.168.4.1.
-- [ ] Verify: Page loads fully (joysticks visible, minimap renders).
-- [ ] Touch left joystick → verify Shore serial shows outgoing ControlPacket.
-- [ ] Verify: Telemetry HUD updates (battery, GPS, heading values change).
-- **Pass criteria:** Full round-trip UI → Shore → Boat → Shore → UI.
+## Phase 2: Walking Range Tests (Outdoor, No Water)
 
-## Phase 2: Range Tests (Outdoor, No Water)
+### T2.1 Wi-Fi Boundary & Failsafe Check
+- [ ] S3 and ESP32-CAM powered on boat chassis.
+- [ ] Walk away with smartphone in open area.
+- [ ] Monitor HUD link badge and video stream:
+  - Note distance where video frame rate drops.
+  - Note distance where Wi-Fi disconnects (expected 40–70m).
+- [ ] Verify boat enters RTH mode immediately upon disconnect.
+- **Pass criteria:** Reliable control up to 40m+; instant RTH upon signal loss.
 
-### T2.1 Open-Field Range Test
-- [ ] Both boards with external IPEX antennas.
-- [ ] Walk boat board away from shore board in open field.
-- [ ] Log packet loss at: 100m, 300m, 500m, 800m, 1000m, 1500m.
-- [ ] Note distance where packet loss exceeds 5%.
-- **Pass criteria:** Usable link (< 5% loss) at ≥ 1000m.
-
-### T2.2 RTH Simulation (Walking Test)
-- [ ] ARM the system, set Home point.
-- [ ] Walk boat board 200m away.
-- [ ] Disconnect Shore ESP32 (simulate signal loss).
-- [ ] Observe serial: RTH mode triggers, bearing calculation starts.
-- [ ] Verify: Bearing to Home is correct direction.
-- **Pass criteria:** RTH math produces correct bearing and distance.
+---
 
 ## Phase 3: Water Tests
 
-### T3.1 Static Float Test
-- [ ] Boat hull sealed, all electronics mounted.
-- [ ] Place boat in still water for 30 minutes.
-- [ ] Check for any water ingress.
-- **Pass criteria:** Zero water inside hull.
+### T3.1 Static Hull Sealing Test
+- [ ] Hull sealed, all electronics mounted.
+- [ ] Place boat in water for 20 minutes without driving.
+- [ ] Inspect hull interior for any water ingress.
+- **Pass criteria:** 100% dry interior.
 
-### T3.2 Motor Thrust Test
+### T3.2 Low-Speed Differential Drive Test
 - [ ] Propellers attached, boat in water.
-- [ ] 25% throttle forward → verify boat moves forward.
-- [ ] 25% throttle reverse → verify boat moves backward.
-- [ ] Yaw left/right → verify boat turns.
-- **Pass criteria:** Differential steering works correctly.
+- [ ] Forward 25% → verify forward thrust.
+- [ ] Reverse 25% → verify reverse thrust.
+- [ ] Turn left / right → verify boat turns using differential thrust.
+- **Pass criteria:** Responsive steering and neutral stopping.
 
-### T3.3 Full Integration Test
-- [ ] Shore station on bank, boat in water.
-- [ ] Drive boat 50m out → verify video + controls working.
-- [ ] Trigger E-STOP from phone → boat stops.
+### T3.3 Full Integration & Camera FPV Test
+- [ ] Stand on shore, drive boat 20–30m out.
+- [ ] Observe live FPV camera feed and dual-gyro minimap on phone screen.
+- [ ] Trigger **E-STOP** from phone → verify boat stops immediately.
 - [ ] Re-ARM → resume driving.
-- [ ] Drive 200m+ out → check telemetry + minimap on phone.
-- **Pass criteria:** All systems nominal at 200m range.
+- **Pass criteria:** Video, controls, and telemetry operate concurrently.
 
-### T3.4 RTH Water Test
-- [ ] ARM, set Home near shore.
-- [ ] Drive boat 100m out.
-- [ ] Power off Shore ESP32.
-- [ ] Observe: Boat should autonomously return toward Home.
-- **Pass criteria:** Boat arrives within 5m of Home point.
+### T3.4 Water RTH Test
+- [ ] ARM boat near shore (Home point set).
+- [ ] Drive boat 30m out into water.
+- [ ] Turn off phone Wi-Fi (simulating signal loss).
+- [ ] Observe boat: boat should turn autonomously toward Home point using compass PID and slow to a stop within 3m of shore.
+- **Pass criteria:** Autonomous return within 3m of Home waypoint.
