@@ -1,0 +1,15 @@
+{
+  "id": "./index.html",
+  "name": "Rescue Boat GCS",
+  "short_name": "Boat GCS",
+  "description": "Landscape rescue boat control and telemetry HUD",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#070b12",
+  "theme_color": "#07111a",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

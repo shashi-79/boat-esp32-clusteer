@@ -7,7 +7,7 @@ A dual-ESP rescue boat controlled directly from a smartphone over Wi-Fi:
 - **Camera Streamer (ESP32-CAM):** Connects to the controller's SoftAP with static IP `192.168.4.2` and serves an independent MJPEG stream on port 81 (`/stream`).
 - **GCS HUD (Phone Browser):** The phone serves `web-ui/index.html` from a local HTTP server; the page connects directly to the boat WebSocket at `192.168.4.1` and the ESP32-CAM video at `192.168.4.2:81`.
 
-The controller does not send the HUD HTML to the phone. It serves a small diagnostic response at `/` and WebSocket control at `/ws`. For a Termux phone, run `python -m http.server 8000 --directory web-ui` from the repository root, connect the phone to `RescueBoat-GCS`, then open `http://127.0.0.1:8000` in the phone browser. The control page defaults to `192.168.4.1`; use `?boat=<controller-ip>` only when the AP address differs.
+The controller does not send the HUD HTML to the phone. It serves a small diagnostic response at `/` and WebSocket control at `/ws`. For a Termux phone, run `python -m http.server 8000 --directory web-ui` from the repository root, connect the phone to `RescueBoat-GCS`, then open `http://127.0.0.1:8000` in the phone browser. The control page defaults to `192.168.4.1`; use Settings to change the controller address, minimap size, or stick response. Install the HUD from the browser menu with **Add to Home screen**; the PWA manifest requests landscape orientation and the page prompts to rotate when opened in portrait.
 
 ## Sensor Availability and Failsafe Behavior
 

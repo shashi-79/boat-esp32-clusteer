@@ -51,10 +51,18 @@ void setup() {
 
     // 1. Start Wi-Fi SoftAP for Phone and ESP32-CAM
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL, 0, WIFI_MAX_CONN);
+    bool apStarted = false;
+    for (uint8_t attempt = 0; attempt < 3 && !apStarted; ++attempt) {
+        apStarted = WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL, 0, WIFI_MAX_CONN);
+        if (!apStarted) delay(500);
+    }
     IPAddress apIP = WiFi.softAPIP();
-    Serial.printf("[WIFI] SoftAP: '%s' | IP: %s | Pass: '%s'\n",
-        WIFI_SSID, apIP.toString().c_str(), WIFI_PASSWORD);
+    if (apStarted) {
+        Serial.printf("[WIFI] SoftAP '%s' ready | IP: %s\n",
+            WIFI_SSID, apIP.toString().c_str());
+    } else {
+        Serial.printf("[WIFI] ERROR: SoftAP '%s' failed to start after 3 attempts\n", WIFI_SSID);
+    }
 
     // 2. Start Web Server and WebSocket
     webSetup();

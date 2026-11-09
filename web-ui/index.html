@@ -3,6 +3,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#07111a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
   <title>Rescue Boat Ground Control Station</title>
   <style>
     :root {
@@ -432,6 +439,85 @@
       .action-panel { bottom: 20px; gap: 10px; }
       .btn-act { width: 62px; height: 62px; }
     }
+
+    /* Compact landscape game HUD */
+    :root { --stick-size: clamp(112px, 22vh, 178px); --map-size: 116px; }
+    html, body { width: 100%; height: 100%; height: 100dvh; }
+    body { min-height: 0; }
+    header { display: none; }
+    #hud-container { top: 0; bottom: 0; }
+    #fpv-stream { height: 100dvh; }
+    .dashboard-panel {
+      top: max(10px, env(safe-area-inset-top)); left: max(10px, env(safe-area-inset-left));
+      width: min(218px, 30vw); padding: 8px 10px; gap: 5px; border-radius: 9px;
+    }
+    .panel-title { display:flex; align-items:center; justify-content:space-between; padding:0 0 4px; }
+    #telemetry-toggle, #btn-settings, #btn-cam, .mini-action {
+      color:var(--text-main); background:rgba(5,14,22,.78); border:1px solid var(--panel-border);
+      font:700 11px monospace; cursor:pointer; touch-action:manipulation;
+    }
+    #telemetry-toggle { border:0; background:transparent; color:var(--accent-cyan); padding:2px 4px; }
+    .dashboard-panel.collapsed { width:auto; min-width:130px; max-width:42vw; padding:7px 9px; }
+    .dashboard-panel.collapsed .telemetry-detail { display:none; }
+    .dashboard-panel.collapsed .panel-title { border:0; padding:0; }
+    .dashboard-panel.collapsed .compact-summary { display:block; }
+    .compact-summary { display:none; color:var(--text-main); font:600 9px/1.45 monospace; margin-top:5px; white-space:nowrap; }
+    .telemetry-detail { display:contents; }
+    .dashboard-panel .stat-label { font-size:10px; }
+    .dashboard-panel .stat-val { font-size:11px; }
+    #radar-wrapper {
+      top:max(10px, env(safe-area-inset-top)); right:max(10px, env(safe-area-inset-right));
+      width:var(--map-size); height:var(--map-size); resize:both; min-width:84px; min-height:84px;
+      max-width:32vw; max-height:45vh; border-radius:50%; touch-action:manipulation;
+    }
+    #radar-canvas { width:100%; height:100%; }
+    .radar-tag { font-size:8px; bottom:4px; }
+    .joy-container {
+      width:var(--stick-size); height:var(--stick-size); bottom:max(12px, env(safe-area-inset-bottom));
+      border-style:solid; border-width:1px; background:rgba(0,18,28,.34);
+      box-shadow:inset 0 0 0 1px rgba(0,212,255,.1), 0 5px 20px rgba(0,0,0,.26);
+    }
+    #joy-left { left:calc(25% - var(--stick-size) / 2); }
+    #joy-right { right:calc(25% - var(--stick-size) / 2); }
+    .joy-container::before, .joy-container::after {
+      content:""; position:absolute; background:rgba(0,212,255,.24); pointer-events:none;
+    }
+    .joy-container::before { width:1px; height:100%; left:50%; top:0; }
+    .joy-container::after { height:1px; width:100%; top:50%; left:0; }
+    .joy-knob { width:56px; height:56px; margin:-28px 0 0 -28px; z-index:1; }
+    .joy-label { bottom:-18px; color:#d6e8f2; font-size:9px; text-shadow:0 1px 4px #000; }
+    .action-panel { bottom:calc(18px + env(safe-area-inset-bottom)); gap:8px; }
+    .btn-act { width:clamp(44px, 8vh, 62px); height:clamp(44px, 8vh, 62px); }
+    .btn-estop .icon, .btn-arm .icon { font-size:16px; }
+    .btn-act .sub { font-size:7px; }
+    #badge-link, #badge-mode { position:absolute; top:max(10px, env(safe-area-inset-top)); z-index:25; }
+    #badge-link { left:50%; transform:translateX(-50%); }
+    #badge-mode { left:50%; transform:translateX(-50%); margin-top:30px; }
+    #btn-cam { position:absolute; z-index:25; top:max(10px, env(safe-area-inset-top)); right:calc(max(10px, env(safe-area-inset-right)) + var(--map-size) + 7px); border-radius:20px; padding:7px 9px; font-size:9px; }
+    #btn-settings { position:absolute; z-index:45; top:calc(max(10px, env(safe-area-inset-top)) + 34px); right:calc(max(10px, env(safe-area-inset-right)) + var(--map-size) + 7px); border-radius:50%; width:32px; height:32px; }
+    #settings-panel {
+      display:none; position:absolute; z-index:60; top:calc(max(50px, env(safe-area-inset-top) + 44px));
+      right:calc(max(10px, env(safe-area-inset-right)) + var(--map-size) + 7px); width:min(210px,44vw);
+      padding:10px; gap:9px; border:1px solid var(--panel-border); border-radius:10px;
+      background:rgba(5,14,22,.95); backdrop-filter:blur(12px); pointer-events:auto; font:11px monospace;
+    }
+    #settings-panel.open { display:grid; }
+    #settings-panel label { display:grid; gap:4px; color:var(--text-muted); }
+    #settings-panel input[type=range] { width:100%; accent-color:var(--accent-green); }
+    #settings-panel input[type=text] { width:100%; padding:6px; color:var(--text-main); background:#101e2a; border:1px solid #294354; border-radius:5px; }
+    #settings-panel button { padding:6px; border-radius:5px; }
+    #alert-toast { top:50%; }
+    #sim-mode { display:none; }
+    #rotate-overlay { display:none; }
+    @media (orientation:portrait) {
+      #rotate-overlay { display:flex; position:fixed; inset:0; z-index:200; align-items:center; justify-content:center; text-align:center; padding:30px; background:rgba(3,9,15,.96); color:var(--text-main); font:600 16px monospace; }
+    }
+    @media (max-height:420px) {
+      :root { --stick-size: min(38vh, 132px); }
+      .dashboard-panel { max-height:65vh; overflow:auto; }
+      #radar-wrapper { max-height:36vh; max-width:30vw; }
+      .joy-label { bottom:-15px; }
+    }
   </style>
 </head>
 <body>
@@ -439,18 +525,19 @@
   <!-- Live FPV Camera Stream (ESP32-CAM) -->
   <img id="fpv-stream" src="http://192.168.4.2:81/stream" alt="Live FPV Camera">
 
-  <!-- Top Bar -->
-  <header>
-    <div class="brand">
-      <div class="brand-dot"></div>
-      <span>Rescue GCS</span>
-    </div>
-    <div class="status-badges">
-      <button id="btn-cam" class="badge badge-btn">CAM: ON</button>
-      <div id="badge-link" class="badge badge-conn">DISCONNECTED</div>
-      <div id="badge-mode" class="badge badge-mode">MANUAL</div>
-    </div>
-  </header>
+  <div class="status-badges">
+    <div id="badge-link" class="badge badge-conn">DISCONNECTED</div>
+    <div id="badge-mode" class="badge badge-mode">MANUAL</div>
+  </div>
+  <button id="btn-cam" class="badge badge-btn" aria-label="Camera stream status and retry">CAM: WAIT</button>
+  <button id="btn-settings" aria-label="Open HUD settings" title="HUD settings">⚙</button>
+  <div id="settings-panel" role="dialog" aria-label="HUD settings">
+    <label>Controller IP<input id="controller-host" type="text" value="192.168.4.1" inputmode="decimal"></label>
+    <button id="apply-host" class="mini-action">CONNECT</button>
+    <label>Minimap size <output id="map-size-value">116 px</output><input id="map-size-control" type="range" min="84" max="210" value="116"></label>
+    <label>Control response <output id="sensitivity-value">100%</output><input id="sensitivity-control" type="range" min="50" max="150" value="100"></label>
+  </div>
+  <div id="rotate-overlay">Rotate your phone to landscape for the control layout.</div>
 
   <div id="alert-toast">E-STOP TRIGGERED</div>
 
@@ -459,7 +546,9 @@
     
     <!-- Telemetry Panel -->
     <div class="dashboard-panel">
-      <div class="panel-title">System Telemetry</div>
+      <div class="panel-title"><span>BOAT STATUS</span><button id="telemetry-toggle" aria-expanded="true" title="Minimize telemetry">−</button></div>
+      <div class="compact-summary" id="compact-summary">--V · GPS -- · --m/s · RADAR --</div>
+      <div class="telemetry-detail">
 
       <!-- Battery M (INA219 Live Percentage + Current) -->
       <div class="meter-container">
@@ -484,23 +573,13 @@
       </div>
 
       <div class="stat-row">
-        <span class="stat-label">Boat Heading</span>
-        <span class="stat-val" style="color:var(--accent-green);"><span id="val-hdg">0</span>&deg;</span>
-      </div>
-
-      <div class="stat-row">
-        <span class="stat-label">Phone Gyro</span>
-        <span class="stat-val" style="color:var(--accent-phone);"><span id="val-ph-hdg">0</span>&deg;</span>
+        <span class="stat-label">Speed</span>
+        <span class="stat-val"><span id="val-spd">0.0</span> m/s</span>
       </div>
 
       <div class="stat-row">
         <span class="stat-label">GPS Sats / Fix</span>
         <span class="stat-val"><span id="val-sat">0</span> (<span id="val-fix">NO</span>)</span>
-      </div>
-
-      <div class="stat-row">
-        <span class="stat-label">Speed</span>
-        <span class="stat-val"><span id="val-spd">0.0</span> m/s</span>
       </div>
 
       <div class="stat-row">
@@ -516,6 +595,7 @@
       <div class="stat-row">
         <span class="stat-label">Sensors GPS / IMU / PWR / RADAR</span>
         <span class="stat-val" id="sensor-health">-- / -- / -- / --</span>
+      </div>
       </div>
     </div>
 
@@ -585,6 +665,8 @@
 
     let simActive = false;
     let radarSweepAngle = 0;
+    let controlSensitivity = Number(localStorage.getItem('boat-control-sensitivity') || 100) / 100;
+    let reconnectTimer = null;
 
     // Elements
     const badgeLink = document.getElementById('badge-link');
@@ -593,6 +675,9 @@
     const labelArm = document.getElementById('label-arm');
     const btnEstop = document.getElementById('btn-estop');
     const btnCam = document.getElementById('btn-cam');
+    const dashboard = document.querySelector('.dashboard-panel');
+    const settingsPanel = document.getElementById('settings-panel');
+    const hostInput = document.getElementById('controller-host');
     const fpvStream = document.getElementById('fpv-stream');
     const alertToast = document.getElementById('alert-toast');
     const canvas = document.getElementById('radar-canvas');
@@ -600,14 +685,20 @@
 
     // Camera Toggle
     let camVisible = true;
+    function requestCameraStream() {
+      camVisible = true;
+      fpvStream.classList.remove('hidden');
+      btnCam.textContent = 'CAM: WAIT';
+      btnCam.className = 'badge badge-btn';
+      fpvStream.src = `http://192.168.4.2:81/stream?t=${Date.now()}`;
+    }
     btnCam.addEventListener('click', () => {
-      camVisible = !camVisible;
-      if (camVisible) {
-        fpvStream.classList.remove('hidden');
-        btnCam.textContent = 'CAM: WAIT';
-        btnCam.className = 'badge badge-btn';
-        fpvStream.src = `http://192.168.4.2:81/stream?t=${Date.now()}`;
+      if (!camVisible) {
+        requestCameraStream();
+      } else if (/LOST|WAIT/.test(btnCam.textContent)) {
+        requestCameraStream();
       } else {
+        camVisible = false;
         fpvStream.classList.add('hidden');
         fpvStream.removeAttribute('src');
         btnCam.textContent = 'CAM: OFF';
@@ -617,19 +708,16 @@
 
     // Camera Reconnect Handler
     fpvStream.onerror = () => {
+      if (!camVisible) return;
       btnCam.textContent = 'CAM: LOST';
       btnCam.className = 'badge badge-btn off';
-      // Retry stream connection if camera is booting
-      setTimeout(() => {
-        if (camVisible) {
-          fpvStream.src = `http://192.168.4.2:81/stream?t=${Date.now()}`;
-        }
-      }, 3000);
+      btnCam.title = 'Camera offline. Tap to retry.';
     };
     fpvStream.onload = () => {
       if (camVisible) {
         btnCam.textContent = 'CAM: LIVE';
         btnCam.className = 'badge badge-btn';
+        btnCam.title = 'Camera online. Tap to hide.';
       }
     };
 
@@ -648,7 +736,6 @@
         }
 
         phoneHeading = Math.round((heading + 360) % 360);
-        document.getElementById('val-ph-hdg').textContent = phoneHeading;
       };
 
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -668,7 +755,7 @@
 
     // WebSocket Connection to S3
     function connectWS() {
-      const controllerHost = new URLSearchParams(window.location.search).get('boat') || '192.168.4.1';
+      const controllerHost = hostInput.value.trim() || '192.168.4.1';
       const wsUrl = `ws://${controllerHost}/ws`;
 
       try {
@@ -688,7 +775,10 @@
       ws.onclose = () => {
         badgeLink.textContent = 'OFFLINE';
         badgeLink.classList.remove('online');
-        setTimeout(connectWS, 2000);
+        if (reconnectTimer === null) reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          connectWS();
+        }, 2000);
       };
 
       ws.onerror = () => {
@@ -738,7 +828,6 @@
         // Simulate phone rotation if sensor unavailable on PC
         if (!phoneSensorActive) {
           phoneHeading = (phoneHeading + 0.8) % 360;
-          document.getElementById('val-ph-hdg').textContent = Math.round(phoneHeading);
         }
 
         updateDashboard(lastTelemetry);
@@ -771,13 +860,16 @@
       document.getElementById('val-sat').textContent = t.sat || 0;
       const fixNames = ['NO', '2D', '3D'];
       document.getElementById('val-fix').textContent = fixNames[t.fix] || 'NO';
+      const radarSummary = t.rd && t.rd > 0 && t.rd < 8 ? `${t.rd.toFixed(1)}m` : 'OK';
+      document.getElementById('compact-summary').innerHTML =
+        `M ${vmVal}V ${pctVal}%/${curVal}A · L ${vlVal}V<br>` +
+        `GPS ${t.sat || 0}/${fixNames[t.fix] || 'NO'} · ${((t.spd || 0) / 100).toFixed(1)}m/s · HOME ${t.hd !== undefined ? t.hd.toFixed(0) : '--'}m · RAD ${radarSummary}`;
       const health = (ok) => ok ? 'OK' : 'LOST';
       document.getElementById('sensor-health').textContent =
         `${health(t.gpsok)} / ${health(t.imuok)} / ${health(t.battok)} / ${health(t.radarok)}`;
 
       // Speed & Heading
       document.getElementById('val-spd').textContent = ((t.spd || 0) / 100).toFixed(1);
-      document.getElementById('val-hdg').textContent = t.hdg !== undefined ? t.hdg : 0;
       document.getElementById('val-hd').textContent = t.hd !== undefined ? t.hd.toFixed(1) : '--';
 
       // Radar
@@ -802,6 +894,74 @@
         badgeMode.className = 'badge badge-mode';
       }
     }
+
+    // HUD controls: meaningful settings for minimap size, link target and stick gain.
+    const telemetryToggle = document.getElementById('telemetry-toggle');
+    telemetryToggle.addEventListener('click', () => {
+      const collapsed = dashboard.classList.toggle('collapsed');
+      telemetryToggle.textContent = collapsed ? '+' : '−';
+      telemetryToggle.setAttribute('aria-expanded', String(!collapsed));
+      telemetryToggle.title = collapsed ? 'Expand telemetry' : 'Minimize telemetry';
+    });
+
+    const settingsButton = document.getElementById('btn-settings');
+    settingsButton.addEventListener('click', () => settingsPanel.classList.toggle('open'));
+    document.addEventListener('pointerdown', (event) => {
+      if (!settingsPanel.contains(event.target) && event.target !== settingsButton) settingsPanel.classList.remove('open');
+    });
+
+    const mapSizeControl = document.getElementById('map-size-control');
+    const mapSizeOutput = document.getElementById('map-size-value');
+    function setMapSize(size) {
+      const px = Math.round(Math.max(84, Math.min(210, size)));
+      document.documentElement.style.setProperty('--map-size', `${px}px`);
+      mapSizeControl.value = px;
+      mapSizeOutput.value = `${px} px`;
+      localStorage.setItem('boat-map-size', String(px));
+    }
+    const savedMapSize = Number(localStorage.getItem('boat-map-size'));
+    if (Number.isFinite(savedMapSize) && savedMapSize > 0) setMapSize(savedMapSize);
+    mapSizeControl.addEventListener('input', () => setMapSize(mapSizeControl.value));
+    const mapResizeObserver = new ResizeObserver(() => {
+      const measured = Math.round(document.getElementById('radar-wrapper').getBoundingClientRect().width);
+      if (Math.abs(measured - Number(mapSizeControl.value)) > 3) setMapSize(measured);
+    });
+    mapResizeObserver.observe(document.getElementById('radar-wrapper'));
+
+    const sensitivityControl = document.getElementById('sensitivity-control');
+    sensitivityControl.value = Math.round(controlSensitivity * 100);
+    document.getElementById('sensitivity-value').value = `${sensitivityControl.value}%`;
+    sensitivityControl.addEventListener('input', () => {
+      controlSensitivity = Number(sensitivityControl.value) / 100;
+      document.getElementById('sensitivity-value').value = `${sensitivityControl.value}%`;
+      localStorage.setItem('boat-control-sensitivity', sensitivityControl.value);
+    });
+
+    document.getElementById('apply-host').addEventListener('click', () => {
+      const host = hostInput.value.trim();
+      if (!/^[a-zA-Z0-9.-]+$/.test(host)) {
+        hostInput.setCustomValidity('Enter a controller IP address or hostname.');
+        hostInput.reportValidity();
+        return;
+      }
+      hostInput.setCustomValidity('');
+      localStorage.setItem('boat-controller-host', host);
+      const url = new URL(window.location.href);
+      if (host === '192.168.4.1') url.searchParams.delete('boat');
+      else url.searchParams.set('boat', host);
+      history.replaceState(null, '', url);
+      if (reconnectTimer !== null) clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      if (ws) {
+        const oldSocket = ws;
+        ws = null;
+        oldSocket.onclose = null;
+        oldSocket.close();
+      }
+      connectWS();
+    });
+    hostInput.value = new URLSearchParams(window.location.search).get('boat') ||
+      localStorage.getItem('boat-controller-host') || '192.168.4.1';
 
     // Tactical Radar Minimap Drawing (Both Boat & Phone Gyroscopes)
     function renderRadar() {
@@ -972,9 +1132,8 @@
       const knob = document.getElementById(knobId);
       let activeTouchId = null;
       let center = { x: 0, y: 0 };
-      const radius = 55;
-
       function updateKnob(cx, cy) {
+        const radius = Math.max(1, (Math.min(container.clientWidth, container.clientHeight) - knob.offsetWidth) / 2);
         const dx = cx - center.x;
         const dy = cy - center.y;
         const dist = Math.hypot(dx, dy);
@@ -1095,6 +1254,11 @@
           m: 0,
           ph: phoneHeading
         };
+        const scaleStick = (value) => Math.max(-1000, Math.min(1000, Math.round(value * controlSensitivity)));
+        packet.t = scaleStick(packet.t);
+        packet.y = scaleStick(packet.y);
+        packet.p = scaleStick(packet.p);
+        packet.i = scaleStick(packet.i);
         ws.send(JSON.stringify(packet));
         if (isEstop) isEstop = false;
       }
@@ -1103,6 +1267,17 @@
     // Initialize
     connectWS();
     requestAnimationFrame(renderRadar);
+
+    // Installed PWAs can lock orientation; show a clear rotate prompt as fallback.
+    async function lockLandscape() {
+      try {
+        if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+      } catch (_) { /* Browser allows locking only in installed/fullscreen contexts. */ }
+    }
+    document.addEventListener('pointerdown', lockLandscape, { once: true });
+    if ('serviceWorker' in navigator) window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./service-worker.js').catch(console.warn);
+    });
   </script>
 </body>
 </html>
