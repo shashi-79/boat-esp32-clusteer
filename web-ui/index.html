@@ -512,6 +512,11 @@
         <span class="stat-label">Radar Obstacle</span>
         <span class="stat-val" style="color:var(--accent-warn);"><span id="val-rd">CLEAR</span></span>
       </div>
+
+      <div class="stat-row">
+        <span class="stat-label">Sensors GPS / IMU / PWR / RADAR</span>
+        <span class="stat-val" id="sensor-health">-- / -- / -- / --</span>
+      </div>
     </div>
 
     <!-- Dual-Gyro Tactical Radar Minimap -->
@@ -599,10 +604,12 @@
       camVisible = !camVisible;
       if (camVisible) {
         fpvStream.classList.remove('hidden');
-        btnCam.textContent = 'CAM: ON';
+        btnCam.textContent = 'CAM: WAIT';
         btnCam.className = 'badge badge-btn';
+        fpvStream.src = `http://192.168.4.2:81/stream?t=${Date.now()}`;
       } else {
         fpvStream.classList.add('hidden');
+        fpvStream.removeAttribute('src');
         btnCam.textContent = 'CAM: OFF';
         btnCam.className = 'badge badge-btn off';
       }
@@ -610,12 +617,20 @@
 
     // Camera Reconnect Handler
     fpvStream.onerror = () => {
+      btnCam.textContent = 'CAM: LOST';
+      btnCam.className = 'badge badge-btn off';
       // Retry stream connection if camera is booting
       setTimeout(() => {
         if (camVisible) {
           fpvStream.src = `http://192.168.4.2:81/stream?t=${Date.now()}`;
         }
       }, 3000);
+    };
+    fpvStream.onload = () => {
+      if (camVisible) {
+        btnCam.textContent = 'CAM: LIVE';
+        btnCam.className = 'badge badge-btn';
+      }
     };
 
     // Phone Gyroscope / Compass Listener
@@ -653,8 +668,8 @@
 
     // WebSocket Connection to S3
     function connectWS() {
-      const host = window.location.host || '192.168.4.1';
-      const wsUrl = `ws://${host}/ws`;
+      const controllerHost = new URLSearchParams(window.location.search).get('boat') || '192.168.4.1';
+      const wsUrl = `ws://${controllerHost}/ws`;
 
       try {
         ws = new WebSocket(wsUrl);
@@ -709,6 +724,10 @@
         lastTelemetry.pct = Math.round(Math.max(10, Math.min(100, 75 + Math.sin(Date.now() / 4000) * 15)));
         lastTelemetry.sat = 11;
         lastTelemetry.fix = 3;
+        lastTelemetry.gpsok = true;
+        lastTelemetry.imuok = true;
+        lastTelemetry.battok = true;
+        lastTelemetry.radarok = true;
         lastTelemetry.hdg = (lastTelemetry.hdg + 1) % 360;
         lastTelemetry.spd = 145;
         lastTelemetry.hd = 35.0 + Math.sin(Date.now() / 2000) * 5.0;
@@ -752,6 +771,9 @@
       document.getElementById('val-sat').textContent = t.sat || 0;
       const fixNames = ['NO', '2D', '3D'];
       document.getElementById('val-fix').textContent = fixNames[t.fix] || 'NO';
+      const health = (ok) => ok ? 'OK' : 'LOST';
+      document.getElementById('sensor-health').textContent =
+        `${health(t.gpsok)} / ${health(t.imuok)} / ${health(t.battok)} / ${health(t.radarok)}`;
 
       // Speed & Heading
       document.getElementById('val-spd').textContent = ((t.spd || 0) / 100).toFixed(1);

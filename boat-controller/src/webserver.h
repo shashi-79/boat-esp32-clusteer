@@ -1,13 +1,12 @@
 #pragma once
 // ============================================================
 // Boat Controller — AsyncWebServer & WebSocket Control Bridge
-// (Runs directly on ESP32-S3 SoftAP)
+// (Runs directly on the sensor controller SoftAP)
 // ============================================================
 
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 #include "config.h"
-#include "web_ui.h"
 
 static AsyncWebServer server(WEB_PORT);
 static AsyncWebSocket  wsocket(WS_PATH);
@@ -23,22 +22,57 @@ static volatile uint8_t  ctrlMode     = 0;
 static volatile int16_t  phoneHeading = 0;  // Operator phone gyroscope/compass heading
 
 static volatile uint32_t lastPhonePacketTime = 0;
+static volatile uint32_t controllerClientId = 0;
+static portMUX_TYPE controlMux = portMUX_INITIALIZER_UNLOCKED;
+
+struct ControlSnapshot {
+    int16_t throttle, yaw, camPan, camTilt, heading;
+    uint8_t arm, estop, mode;
+};
+
+static ControlSnapshot webControlSnapshot() {
+    ControlSnapshot s;
+    portENTER_CRITICAL(&controlMux);
+    s = {ctrlThrottle, ctrlYaw, ctrlCamPan, ctrlCamTilt, phoneHeading, ctrlArm, ctrlEstop, ctrlMode};
+    portEXIT_CRITICAL(&controlMux);
+    return s;
+}
+
+static bool webPacketFieldInRange(JsonVariantConst value, int low, int high) {
+    if (!value.is<int>()) return false;
+    const int parsed = value.as<int>();
+    return parsed >= low && parsed <= high;
+}
 
 // --- Handle WebSocket Events from Phone ---
 static void onWsEvent(AsyncWebSocket *srv, AsyncWebSocketClient *client,
                        AwsEventType type, void *arg, uint8_t *data, size_t len) {
     if (type == WS_EVT_CONNECT) {
+        if (controllerClientId != 0) {
+            client->close(1008, "Controller already connected");
+            return;
+        }
+        controllerClientId = client->id();
         DBG("WebSocket: Phone connected from %s (id: %u)",
             client->remoteIP().toString().c_str(), client->id());
     }
     else if (type == WS_EVT_DISCONNECT) {
         DBG("WebSocket: Phone disconnected (id: %u)", client->id());
+        if (client->id() == controllerClientId) {
+            controllerClientId = 0;
+            portENTER_CRITICAL(&controlMux);
+            ctrlThrottle = ctrlYaw = ctrlCamPan = ctrlCamTilt = 0;
+            ctrlMode = ctrlEstop = 0;
+            lastPhonePacketTime = 0;
+            portEXIT_CRITICAL(&controlMux);
+        }
     }
     else if (type == WS_EVT_DATA) {
         AwsFrameInfo *info = (AwsFrameInfo*)arg;
         if (info->final && info->index == 0 && info->len == len && info->opcode == WS_TEXT) {
             char json[256];
-            size_t copyLen = len < 255 ? len : 255;
+            if (len == 0 || len >= sizeof(json) || client->id() != controllerClientId) return;
+            size_t copyLen = len;
             memcpy(json, data, copyLen);
             json[copyLen] = '\0';
 
@@ -47,23 +81,34 @@ static void onWsEvent(AsyncWebSocket *srv, AsyncWebSocketClient *client,
             DeserializationError err = deserializeJson(doc, json);
             if (err) return;
 
-            ctrlThrottle = doc["t"] | (int16_t)0;
-            ctrlYaw      = doc["y"] | (int16_t)0;
-            ctrlCamPan   = doc["p"] | (int16_t)0;
-            ctrlCamTilt  = doc["i"] | (int16_t)0;
-            ctrlArm      = doc["a"] | (uint8_t)0;
-            ctrlEstop    = doc["e"] | (uint8_t)0;
-            ctrlMode     = doc["m"] | (uint8_t)0;
-            phoneHeading = doc["ph"] | (int16_t)0;
+            if (!webPacketFieldInRange(doc["t"], -1000, 1000) ||
+                !webPacketFieldInRange(doc["y"], -1000, 1000) ||
+                !webPacketFieldInRange(doc["p"], -1000, 1000) ||
+                !webPacketFieldInRange(doc["i"], -1000, 1000) ||
+                !webPacketFieldInRange(doc["a"], 0, 1) ||
+                !webPacketFieldInRange(doc["e"], 0, 1) ||
+                !webPacketFieldInRange(doc["m"], MODE_MANUAL, MODE_RTH) ||
+                !webPacketFieldInRange(doc["ph"], 0, 359)) return;
 
+            portENTER_CRITICAL(&controlMux);
+            ctrlThrottle = doc["t"].as<int>();
+            ctrlYaw      = doc["y"].as<int>();
+            ctrlCamPan   = doc["p"].as<int>();
+            ctrlCamTilt  = doc["i"].as<int>();
+            ctrlArm      = doc["a"].as<int>();
+            ctrlEstop    = doc["e"].as<int>();
+            ctrlMode     = doc["m"].as<int>();
+            phoneHeading = doc["ph"].as<int>();
             lastPhonePacketTime = millis();
+            portEXIT_CRITICAL(&controlMux);
         }
     }
 }
 
 // --- Check if Phone Connection is Healthy ---
 static bool webIsPhoneConnected() {
-    return (wsocket.count() > 0) && ((millis() - lastPhonePacketTime) < FAILSAFE_TIMEOUT_MS);
+    return controllerClientId != 0 && lastPhonePacketTime != 0 &&
+           ((millis() - lastPhonePacketTime) < FAILSAFE_TIMEOUT_MS);
 }
 
 // --- Broadcast Live Telemetry to Phone at 5 Hz ---
@@ -83,7 +128,13 @@ static void webSendTelemetry(
     float    radarDist,
     int16_t  radarAngle,
     uint8_t  armed,
-    uint8_t  mode
+    uint8_t  mode,
+    bool gpsHealthy,
+    bool imuHealthy,
+    bool batteryHealthy,
+    bool radarHealthy,
+    bool logicBatteryHealthy,
+    bool ina219Present
 ) {
     if (wsocket.count() == 0) return;
 
@@ -104,17 +155,25 @@ static void webSendTelemetry(
     doc["ra"]  = radarAngle;
     doc["arm"] = armed;
     doc["mode"]= mode;
+    doc["gpsok"] = gpsHealthy;
+    doc["imuok"] = imuHealthy;
+    doc["battok"] = batteryHealthy;
+    doc["radarok"] = radarHealthy;
+    doc["logicok"] = logicBatteryHealthy;
+    doc["ina"] = ina219Present;
 
-    char buf[288];
+    char buf[384];
     size_t len = serializeJson(doc, buf, sizeof(buf));
     wsocket.textAll(buf, len);
 }
 
 // --- Initialize Web Server ---
 static void webSetup() {
-    // Serve the HUD web page from PROGMEM
+    // Keep the controller HTTP handler small; the phone hosts the HUD locally.
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send_P(200, "text/html", WEB_UI_HTML, WEB_UI_HTML_LEN);
+        request->send(200, "text/plain",
+            "Rescue Boat controller online. Serve web-ui/index.html locally on the phone.\n"
+            "WebSocket control endpoint: ws://192.168.4.1/ws\n");
     });
 
     // Attach WebSocket

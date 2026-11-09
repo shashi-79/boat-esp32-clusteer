@@ -3,17 +3,17 @@
 ## Phase 1: Bench Tests (No Water, No Motors)
 
 ### T1.1 SoftAP & Web GCS Link Test
-- [ ] Power Boat Controller (ESP32-S3).
+- [ ] Power the classic ESP32 sensor controller through its CP2102-connected board.
 - [ ] On smartphone, scan Wi-Fi networks → verify `RescueBoat-GCS` appears.
 - [ ] Connect with password `rescue2026`.
-- [ ] Open phone browser at `http://192.168.4.1`.
+- [ ] Serve `web-ui/` locally on the phone and open `http://127.0.0.1:8000`.
 - [ ] Verify: Web GCS HUD loads with joysticks, battery gauges, and radar disc.
 - [ ] Verify: Link badge turns green (**CONNECTED**).
 - **Pass criteria:** Web UI loads within 2 seconds; WebSocket handshake succeeds.
 
 ### T1.2 ESP32-CAM Video Stream Test
 - [ ] Power ESP32-CAM module (dedicated 5V BEC).
-- [ ] Verify S3 serial log shows client connected (`192.168.4.2`).
+- [ ] Verify controller serial log shows camera client connected (`192.168.4.2`).
 - [ ] In phone browser, check FPV video backdrop renders behind HUD.
 - [ ] Tap **CAM: ON / OFF** in header → verify video hides and restores.
 - **Pass criteria:** Live video stream displays smoothly with < 300ms latency.
@@ -30,7 +30,7 @@
 ### T1.4 Wi-Fi Disconnect Failsafe Test
 - [ ] Connect phone, verify system is receiving packets.
 - [ ] Disconnect phone Wi-Fi or walk out of range.
-- [ ] Observe S3 serial monitor:
+- [ ] Observe controller CP2102 serial monitor:
   - Within 1500ms: serial logs `Safety: SIGNAL LOST`.
   - Mode switches from `MODE_MANUAL` to `MODE_RTH` (or `MODE_FAILSAFE` if no GPS fix).
   - Motor outputs immediately command neutral (1500µs).
@@ -75,12 +75,27 @@
   - Current shows live motor draw in Amps.
 - **Pass criteria:** Voltage, current, and non-linear percentage calculate accurately.
 
+### T1.10 Sensor Disconnect and E-STOP Recovery
+
+- [ ] Verify arming is rejected without a recent GPS 3D fix or a responding BNO055.
+- [ ] While safely armed with propellers removed, disconnect GPS; verify motors go neutral and the boat disarms.
+- [ ] Restore GPS; verify the operator must explicitly arm again.
+- [ ] Trigger E-STOP, send disarm, then verify re-arming is possible only after normal sensor checks pass.
+- [ ] Stop sending control packets; verify the 1.5-second watchdog selects RTH only while GPS and IMU remain healthy, otherwise neutral/disarm.
+- [ ] Disconnect INA219 with the motor ADC divider connected; verify ADC voltage fallback. Disconnect both sensing paths and verify arming is rejected.
+- [ ] Verify HUD sensor status reports GPS, IMU, battery, and radar health; unplug each and confirm its status changes.
+- [ ] Connect a second browser; verify it is rejected while the active controller retains control.
+- [ ] Send malformed and out-of-range control fields; verify they are rejected and the link watchdog expires normally if valid packets stop.
+- [ ] Verify the camera recovers after camera initialization failure and after a Wi-Fi reconnect.
+- [ ] Serve `web-ui/` from a local HTTP server on the phone, connect to the boat AP, and open the HUD from `127.0.0.1`.
+- [ ] Verify the phone page connects to `ws://192.168.4.1/ws`, video loads directly from `192.168.4.2:81`, and the controller root returns only a short diagnostic message.
+
 ---
 
 ## Phase 2: Walking Range Tests (Outdoor, No Water)
 
 ### T2.1 Wi-Fi Boundary & Failsafe Check
-- [ ] S3 and ESP32-CAM powered on boat chassis.
+- [ ] Classic ESP32 controller and separate ESP32-CAM powered on boat chassis.
 - [ ] Walk away with smartphone in open area.
 - [ ] Monitor HUD link badge and video stream:
   - Note distance where video frame rate drops.

@@ -6,6 +6,8 @@
 #include <Arduino.h>
 #include "config.h"
 
+static void motorsSetNeutral();
+
 static void motorsSetup() {
     // Configure LEDC channels for ESC PWM (50 Hz, 16-bit resolution)
     ledcSetup(LEDC_CH_ESC_LEFT,  ESC_FREQ_HZ, 16);

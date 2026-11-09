@@ -13,6 +13,7 @@ static HardwareSerial GPSSerial(1);  // UART1
 static float homeLat = 0.0f;
 static float homeLon = 0.0f;
 static bool  homeSet = false;
+static uint32_t gpsLastFixMs = 0;
 
 static void gpsSetup() {
     GPSSerial.begin(GPS_BAUD, SERIAL_8N1, PIN_GPS_RX, PIN_GPS_TX);
@@ -23,18 +24,20 @@ static void gpsSetup() {
 static void gpsUpdate() {
     while (GPSSerial.available() > 0) {
         gps.encode(GPSSerial.read());
+        if (gps.location.isUpdated() && gps.location.isValid()) gpsLastFixMs = millis();
     }
 }
 
 // --- Getters ---
 static bool gpsHasFix() {
-    return gps.location.isValid() && gps.satellites.value() >= ARM_MIN_SATS;
+    return gps.location.isValid() && gps.satellites.value() >= ARM_MIN_SATS &&
+           gpsLastFixMs != 0 && millis() - gpsLastFixMs < 2000;
 }
 
 static float gpsLat()    { return gps.location.lat(); }
 static float gpsLon()    { return gps.location.lng(); }
 static uint8_t gpsSats() { return gps.satellites.value(); }
-static float gpsSpeed()  { return gps.speed.cmps(); }  // cm/s
+static float gpsSpeed()  { return gps.speed.mps() * 100.0f; }  // cm/s
 
 static uint8_t gpsFixType() {
     if (!gps.location.isValid()) return 0;

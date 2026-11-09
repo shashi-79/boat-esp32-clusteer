@@ -21,12 +21,12 @@ if ($BuildOnly) {
     exit 0
 }
 
-Write-Host "This script flashes both the Boat Controller (ESP32-S3) and Camera (ESP32-CAM)." -ForegroundColor White
+Write-Host "This script flashes the classic ESP32 sensor controller and separate Camera (ESP32-CAM)." -ForegroundColor White
 
-# Flash Boat S3
-Write-Host "`n[STEP 1] Flashing Boat Controller (ESP32-S3)..." -ForegroundColor Yellow
+# Flash sensor controller
+Write-Host "`n[STEP 1] Flashing classic ESP32 sensor controller..." -ForegroundColor Yellow
 if ($BoatPort -eq "") {
-    $choice = Read-Host "Is the Boat ESP32-S3 board plugged in? (Y/N)"
+    $choice = Read-Host "Is the CP2102-connected sensor controller plugged in? (Y/N)"
     if ($choice -ne "Y" -and $choice -ne "y") {
         Write-Host "Plug in Boat board and re-run." -ForegroundColor Yellow
         exit 0
@@ -52,7 +52,7 @@ if ($CamPort -eq "") {
 
 Write-Host "`n=================================================" -ForegroundColor Green
 Write-Host " Both Boards Successfully Flashed!" -ForegroundColor Green
-Write-Host " 1. Power on boat electronics (S3 + ESP32-CAM)." -ForegroundColor Green
+Write-Host " 1. Power on boat electronics (sensor controller + ESP32-CAM)." -ForegroundColor Green
 Write-Host " 2. Connect phone to WiFi: RescueBoat-GCS (pass: rescue2026)" -ForegroundColor Green
-Write-Host " 3. Open browser: http://192.168.4.1" -ForegroundColor Green
+Write-Host " 3. Serve web-ui locally on the phone, then open http://127.0.0.1:8000" -ForegroundColor Green
 Write-Host "=================================================" -ForegroundColor Green

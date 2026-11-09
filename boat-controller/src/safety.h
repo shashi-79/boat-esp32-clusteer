@@ -28,7 +28,9 @@ static uint8_t safetyProcess(
     bool    gpsFix,
     uint8_t sats,
     uint8_t fixType,
-    bool    motorBattLow
+    bool    motorBattLow,
+    bool    imuHealthy,
+    bool    motorBattHealthy
 ) {
     // --- E-STOP: highest priority, overrides everything ---
     if (estopCmd == 1) {
@@ -39,11 +41,16 @@ static uint8_t safetyProcess(
         return MODE_FAILSAFE;
     }
 
-    // --- Clear E-STOP only by explicit DISARM then re-ARM ---
+    // E-stop is latched until an explicit disarm packet arrives.
+    if (safetyEstop && armCmd == 0) {
+        safetyEstop = false;
+        safetyMode = MODE_MANUAL;
+        return MODE_MANUAL;
+    }
 
     // --- ARM/DISARM ---
     if (armCmd == 1 && !safetyArmed) {
-        if (safetyCanArm(sats, fixType) && !safetyEstop) {
+        if (gpsFix && safetyCanArm(sats, fixType) && imuHealthy && motorBattHealthy && !safetyEstop) {
             safetyArmed = true;
             DBG("Safety: ARMED (sats=%d)", sats);
         } else {
@@ -65,7 +72,14 @@ static uint8_t safetyProcess(
     }
 
     // --- Low battery: force RTH ---
-    if (motorBattLow && gpsFix) {
+    if (!imuHealthy || !gpsFix || !motorBattHealthy) {
+        safetyMode = MODE_FAILSAFE;
+        safetyArmed = false;
+        DBG("Safety: required navigation sensor lost — disarming");
+        return MODE_FAILSAFE;
+    }
+
+    if (motorBattLow) {
         safetyMode = MODE_RTH;
         DBG("Safety: LOW BATTERY → RTH forced");
         return MODE_RTH;

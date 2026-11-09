@@ -23,30 +23,30 @@
 #define MODE_FAILSAFE       2
 
 // --- Motor ESC Pins (Bidirectional, 1500µs neutral) ---
-#define PIN_ESC_LEFT        4
-#define PIN_ESC_RIGHT       5
+#define PIN_ESC_LEFT        25
+#define PIN_ESC_RIGHT       26
 
 // --- Camera Servo Pins ---
-#define PIN_SERVO_PAN       6
-#define PIN_SERVO_TILT      7
+#define PIN_SERVO_PAN       27
+#define PIN_SERVO_TILT      32
 
 // --- Future Expansion Servo Pins ---
-#define PIN_SERVO_AUX1      15
-#define PIN_SERVO_AUX2      16
-#define PIN_SERVO_AUX3      17
+#define PIN_SERVO_AUX1      13
+#define PIN_SERVO_AUX2      14
+#define PIN_SERVO_AUX3      23
 
 // --- I²C Bus (IMU / Compass) ---
-#define PIN_I2C_SDA         8
-#define PIN_I2C_SCL         9
+#define PIN_I2C_SDA         21
+#define PIN_I2C_SCL         22
 
 // --- GPS UART1 ---
-#define PIN_GPS_RX          18   // ESP32 RX ← GPS TX
-#define PIN_GPS_TX          19   // ESP32 TX → GPS RX
+#define PIN_GPS_RX          16   // ESP32 RX ← GPS TX (WROOM without PSRAM)
+#define PIN_GPS_TX          17   // ESP32 TX → GPS RX
 #define GPS_BAUD            9600
 
 // --- 24GHz Radar UART2 ---
-#define PIN_RADAR_RX        20   // ESP32 RX ← Radar TX
-#define PIN_RADAR_TX        21   // ESP32 TX → Radar RX
+#define PIN_RADAR_RX        18   // ESP32 RX ← Radar TX
+#define PIN_RADAR_TX        19   // ESP32 TX → Radar RX
 #define RADAR_BAUD          256000
 
 // --- Battery Monitoring (INA219 I2C + ADC fallback) ---
@@ -54,11 +54,11 @@
 #define LIPO_CELL_COUNT     3      // 3 = 3S (11.1V/12.6V), 4 = 4S (14.8V/16.8V)
 
 // ADC Fallback / Logic Battery Monitor
-#define PIN_BATT_MOTOR      1      // ADC fallback if INA219 offline
-#define PIN_BATT_LOGIC      2      // Logic 2S battery ADC pin
+#define PIN_BATT_MOTOR      34     // ADC1 input-only, safe while Wi-Fi is active
+#define PIN_BATT_LOGIC      35     // ADC1 input-only, safe while Wi-Fi is active
 #define BATT_MOTOR_RATIO    11.0f  // 10k + 1k divider ratio
 #define BATT_LOGIC_RATIO    6.0f   // 10k + 2k divider ratio
-#define ADC_REF_MV          3300   // ESP32-S3 ADC reference voltage
+#define ADC_REF_MV          3300   // Classic ESP32 ADC reference voltage
 
 // --- ESC PWM Configuration ---
 #define ESC_FREQ_HZ         50

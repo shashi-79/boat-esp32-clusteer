@@ -3,8 +3,8 @@
 ## Project Summary
 
 Dual-ESP rescue boat with direct smartphone Wi-Fi connection (40–70m range):
-- **ESP32-S3:** Hosts SoftAP `RescueBoat-GCS`, serves Web HUD via AsyncWebServer, parses 25Hz WebSocket joysticks, controls dual ESC motors with differential mixing, pan/tilt camera gimbal, GPS (NEO-M8N), compass IMU (BNO055), 24GHz mmWave radar (HLK-LD2450), INA219 battery telemetry, and autonomous Return-To-Home (RTH) on signal loss (>1.5s).
-- **ESP32-CAM:** Connects to S3 SoftAP as client (`192.168.4.2`), streams real-time MJPEG video on port 81 (`/stream`).
+- **Classic ESP32-WROOM-32U sensor controller:** Hosts SoftAP `RescueBoat-GCS` and a compact control WebSocket, parses 25Hz phone commands, controls motors and gimbal, reads GPS/IMU/radar/battery sensors, and handles RTH on signal loss. Program it through the CP2102 UART bridge with `nrflash`.
+- **ESP32-CAM:** Connects to the sensor controller SoftAP as a separate client (`192.168.4.2`), streams real-time MJPEG video on port 81 (`/stream`).
 - **Web GCS HUD:** Displays dual touch joysticks, live camera backdrop, and a dual-gyroscope minimap rendering both the **Boat heading** (from IMU) and **Phone heading** (from phone sensor).
 
 ## Repository Structure
@@ -17,12 +17,11 @@ boat-esp32-clusteer/
 ├── TEST.md                  # Testing procedures and checklists
 ├── platformio.ini           # PlatformIO multi-environment config (boat, cam)
 │
-├── boat-controller/         # ESP32-S3 Master Firmware
+├── boat-controller/         # Classic ESP32-WROOM-32U Sensor Controller
 │   └── src/
 │       ├── main.cpp          # Setup, SoftAP, cooperative loop, failsafe
 │       ├── config.h          # Pin definitions, Wi-Fi credentials, tuning
 │       ├── webserver.h       # AsyncWebServer + WebSocket 25Hz control bridge
-│       ├── web_ui.h          # PROGMEM embedded tactical Web HUD
 │       ├── motors.h          # Dual ESC PWM mixing & neutral latching
 │       ├── servos.h          # Camera pan/tilt gimbal PWM control
 │       ├── gps.h             # NEO-M8N NMEA parser & home vector calculation
@@ -36,15 +35,13 @@ boat-esp32-clusteer/
 │   └── src/
 │       └── main.cpp          # OV2640 camera init + port 81 MJPEG server
 │
-├── web-ui/                  # Standalone Browser HUD (dev source)
+├── web-ui/                  # HUD served locally by the phone
 │   ├── index.html            # Joysticks, live camera backdrop, dual-gyro minimap
-│   └── compress.py           # Embeds index.html into boat web_ui.h
 │
-└── deploy/                  # Flash and deploy scripts
-    ├── flash_boat.ps1        # Build + flash Boat ESP32-S3
+└── deploy/                  # Flash scripts
+    ├── flash_boat.ps1        # Build + flash classic ESP32 controller
     ├── flash_cam.ps1         # Build + flash Camera ESP32-CAM
-    ├── flash_all.ps1         # Sequentially flashes S3 and CAM
-    └── compress_ui.ps1       # Compresses index.html into web_ui.h
+    ├── flash_all.ps1         # Sequentially flashes controller and CAM
 ```
 
 ## Build & Flash Commands
@@ -56,7 +53,7 @@ pio run -e boat
 # Build camera firmware
 pio run -e cam
 
-# Flash boat (auto-detect COM port)
+# Flash boat controller (CP2102 UART bridge)
 .\deploy\flash_boat.ps1 -Monitor
 
 # Flash camera (IO0 bridged to GND)
@@ -64,7 +61,20 @@ pio run -e cam
 
 # Flash both boards sequentially
 .\deploy\flash_all.ps1
+
+# Build the sensor-controller image
+tpio run -e boat
 ```
+
+### Run the HUD on the Phone
+
+The HUD is not embedded or served by the controller. On the phone in Termux, from the repository root, run:
+
+```sh
+python -m http.server 8000 --directory web-ui
+```
+
+Connect the phone to `RescueBoat-GCS`, then open `http://127.0.0.1:8000` in its browser. The page sends control to the controller WebSocket and loads video directly from the ESP32-CAM.
 
 ## Dual-Gyroscope Minimap Operation
 

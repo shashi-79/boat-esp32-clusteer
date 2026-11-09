@@ -11,9 +11,11 @@ static HardwareSerial RadarSerial(2);  // UART2
 // Parsed obstacle data (nearest target)
 static float  radarDist  = 99.0f;   // meters (99 = no target)
 static int16_t radarAngle = 0;       // degrees (-90 to +90)
+static uint32_t radarLastFrameMs = 0;
 
 // LD2450 frame buffer
 #define RADAR_BUF_SIZE 64
+#define RADAR_FRAME_SIZE 30
 static uint8_t radarBuf[RADAR_BUF_SIZE];
 static uint8_t radarIdx = 0;
 
@@ -53,7 +55,7 @@ static void radarParseFrame(const uint8_t* frame, uint8_t len) {
         if (x == 0 && y == 0) continue;
 
         // Distance in meters
-        float dist = sqrtf((float)(x * x + y * y)) / 1000.0f;
+        float dist = hypotf((float)x, (float)y) / 1000.0f;
         // Angle in degrees (0 = straight ahead, + = right, - = left)
         float angle = atan2f((float)x, (float)y) * 180.0f / PI;
 
@@ -79,13 +81,14 @@ static void radarUpdate() {
             radarBuf[radarIdx - 1] == RADAR_FOOTER[1]) {
 
             // Verify header
-            if (radarIdx >= 6 &&
+            if (radarIdx == RADAR_FRAME_SIZE &&
                 radarBuf[0] == RADAR_HEADER[0] &&
                 radarBuf[1] == RADAR_HEADER[1] &&
                 radarBuf[2] == RADAR_HEADER[2] &&
                 radarBuf[3] == RADAR_HEADER[3]) {
 
                 radarParseFrame(radarBuf, radarIdx);
+                radarLastFrameMs = millis();
             }
             radarIdx = 0;  // Reset for next frame
         }
@@ -98,6 +101,10 @@ static void radarUpdate() {
 }
 
 // --- Getters ---
-static float  radarGetDist()  { return radarDist; }
-static int16_t radarGetAngle() { return radarAngle; }
-static bool   radarHasTarget() { return radarDist < 8.0f; }
+static float  radarGetDist()  {
+    if (radarLastFrameMs == 0 || millis() - radarLastFrameMs > 1000) return 99.0f;
+    return radarDist;
+}
+static bool   radarIsHealthy() { return radarLastFrameMs != 0 && millis() - radarLastFrameMs <= 1000; }
+static int16_t radarGetAngle() { return radarIsHealthy() ? radarAngle : 0; }
+static bool   radarHasTarget() { return radarIsHealthy() && radarDist < 8.0f; }

@@ -101,11 +101,16 @@ static void batteryUpdate() {
     if (ina219Ready) {
         // High-precision I2C measurement: bus voltage + shunt current
         float busVoltageV = ina219.getBusVoltage_V();
-        float currentMa   = ina219.getCurrent_mA();
+        if (isfinite(busVoltageV) && busVoltageV >= 5.0f && busVoltageV <= 32.0f) {
+            rawMotorMv = busVoltageV * 1000.0f;
+            rawCurMa   = ina219.getCurrent_mA();
+        } else {
+            ina219Ready = false;
+            DBG("Battery: INA219 reading invalid; switching to ADC fallback");
+        }
+    }
 
-        rawMotorMv = busVoltageV * 1000.0f;
-        rawCurMa   = currentMa;
-    } else {
+    if (!ina219Ready) {
         // Fallback: ADC resistor divider
         uint32_t rawMotorAdc = analogReadMilliVolts(PIN_BATT_MOTOR);
         rawMotorMv = rawMotorAdc * BATT_MOTOR_RATIO;
@@ -135,6 +140,8 @@ static uint16_t batteryLogicMv()     { return battLogicMv; }
 static int16_t  batteryCurrentMa()   { return battCurrentMa; }
 static uint8_t  batteryPercentage()  { return battPercent; }
 static bool     batteryHasIna219()   { return ina219Ready; }
+static bool     batteryMotorReadingValid() { return battMotorMv >= 5000; }
+static bool     batteryLogicReadingValid() { return battLogicMv >= 5000; }
 
 // --- Safety Alarms ---
 static bool batteryMotorLow() {

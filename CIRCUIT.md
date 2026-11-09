@@ -47,7 +47,7 @@ This document details every hardware connection, pinout configuration, power dis
                          │ 5V            │
                          ▼               ▼
                  ┌───────────────────────────────┐
-                 │     ESP32-S3 DevKitC-1        │
+                 │   ESP32-WROOM-32U Board      │
                  │    (Master Controller)        │
                  └───────┬───────────────┬───────┘
                          │ 3.3V Out      │
@@ -63,41 +63,40 @@ This document details every hardware connection, pinout configuration, power dis
 ```
 
 > [!CAUTION]
-> **Common Ground Requirement:** All ground lines (LiPo Battery (-), Logic Battery (-), BEC GND, ESP32-S3 GND, ESP32-CAM GND, ESC GND, Servos GND, and Sensor GND) **MUST** be connected to a shared central ground bus. If grounds are split or floating, PWM signals will jitter and serial communication will fail.
+> **Common Ground Requirement:** All ground lines (LiPo Battery (-), Logic Battery (-), BEC GND, controller GND, ESP32-CAM GND, ESC GND, Servos GND, and Sensor GND) **MUST** be connected to a shared central ground bus. If grounds are split or floating, PWM signals will jitter and serial communication will fail.
 
 > [!WARNING]
-> **Servo Power Isolation:** Never power servos or the ESP32-CAM from the ESP32-S3 3.3V or onboard 5V pin. Servos create high inductive spikes and stall current draws (up to 2A) that will brown out the ESP32-S3 MCU and trigger immediate reboots. Use the external 5V 3A BEC for servos and camera.
+> **Servo Power Isolation:** Never power servos or the ESP32-CAM from the controller's 3.3V or onboard 5V pin. Servos create high inductive spikes and stall current draws (up to 2A) that can brown out the controller. Use the external 5V 3A BEC for servos and camera.
 
 ---
 
-## 2. Complete ESP32-S3 Pinout & Wiring Table
+## 2. Classic ESP32-WROOM-32U Controller Pinout & Wiring Table
 
-Master configuration defined in [`boat-controller/src/config.h`](file:///c:/Users/anamika%20sakal/Downloads/shashi/boat-esp32-clusteer/boat-controller/src/config.h).
+Master configuration defined in [`boat-controller/src/config.h`](boat-controller/src/config.h).
 
 | GPIO | Pin Name / Function | Target Module | Module Pin | Direction / Mode | Electrical Spec / Notes |
 |:----:|:-------------------|:--------------|:----------:|:----------------:|:------------------------|
-| **1** | `PIN_BATT_MOTOR` | Motor LiPo Voltage Divider | Divider Midpoint | Input (ADC1_CH0) | 11.0:1 Divider (10kΩ / 1kΩ) |
-| **2** | `PIN_BATT_LOGIC` | Logic LiPo Voltage Divider | Divider Midpoint | Input (ADC1_CH1) | 6.0:1 Divider (10kΩ / 2kΩ) |
-| **4** | `PIN_ESC_LEFT` | Left Motor ESC | PWM White/Orange | Output (LEDC Ch 0) | 50 Hz PWM, 1000–2000 µs |
-| **5** | `PIN_ESC_RIGHT` | Right Motor ESC | PWM White/Orange | Output (LEDC Ch 1) | 50 Hz PWM, 1000–2000 µs |
-| **6** | `PIN_SERVO_PAN` | Camera Gimbal Pan Servo | Signal (Yellow/White) | Output (LEDC Ch 2) | 50 Hz PWM, 500–2500 µs |
-| **7** | `PIN_SERVO_TILT` | Camera Gimbal Tilt Servo| Signal (Yellow/White) | Output (LEDC Ch 3) | 50 Hz PWM, 500–2500 µs |
-| **8** | `PIN_I2C_SDA` | INA219 + BNO055 Bus | SDA | Bidirectional | Shared I²C Data, 3.3V logic |
-| **9** | `PIN_I2C_SCL` | INA219 + BNO055 Bus | SCL | Output (Clock) | Shared I²C Clock, 3.3V logic |
-| **15**| `PIN_SERVO_AUX1` | Expansion Servo 1 | Signal | Output (LEDC Ch 4) | Reserved (Release mechanism / gripper) |
-| **16**| `PIN_SERVO_AUX2` | Expansion Servo 2 | Signal | Output (LEDC Ch 5) | Reserved (Water sampler / searchlight) |
-| **17**| `PIN_SERVO_AUX3` | Expansion Servo 3 | Signal | Output (LEDC Ch 6) | Reserved |
-| **18**| `PIN_GPS_RX` | NEO-M8N GPS Module | TXD | Input (HW UART1) | 9600 Baud, 8N1 |
-| **19**| `PIN_GPS_TX` | NEO-M8N GPS Module | RXD | Output (HW UART1) | 9600 Baud, 8N1 |
-| **20**| `PIN_RADAR_RX` | HLK-LD2450 mmWave Radar | TX | Input (HW UART2) | 256,000 Baud, 8N1 |
-| **21**| `PIN_RADAR_TX` | HLK-LD2450 mmWave Radar | RX | Output (HW UART2) | 256,000 Baud, 8N1 |
-| **3V3**| 3.3V Out | BNO055, INA219 Logic | VCC / VIN | Power Output | 3.3V from S3 onboard regulator |
-| **5V** | 5V In / VBUS | 5V BEC (Logic rail) | 5V Out | Power Input | Clean 5.0V supply for S3 board |
+| **13**| `PIN_SERVO_AUX1` | Expansion Servo 1 | Signal | Output (LEDC Ch 4) | Reserved |
+| **14**| `PIN_SERVO_AUX2` | Expansion Servo 2 | Signal | Output (LEDC Ch 5) | Reserved |
+| **16**| `PIN_GPS_RX` | NEO-M8N GPS Module | TXD | Input (HW UART1) | 9600 Baud, 8N1 |
+| **17**| `PIN_GPS_TX` | NEO-M8N GPS Module | RXD | Output (HW UART1) | 9600 Baud, 8N1 |
+| **18**| `PIN_RADAR_RX` | HLK-LD2450 mmWave Radar | TX | Input (HW UART2) | 256,000 Baud, 8N1 |
+| **19**| `PIN_RADAR_TX` | HLK-LD2450 mmWave Radar | RX | Output (HW UART2) | 256,000 Baud, 8N1 |
+| **21**| `PIN_I2C_SDA` | INA219 + BNO055 Bus | SDA | Bidirectional | Shared 3.3V I²C data |
+| **22**| `PIN_I2C_SCL` | INA219 + BNO055 Bus | SCL | Output (Clock) | Shared 3.3V I²C clock |
+| **23**| `PIN_SERVO_AUX3` | Expansion Servo 3 | Signal | Output (LEDC Ch 6) | Reserved |
+| **25**| `PIN_ESC_LEFT` | Left Motor ESC | PWM White/Orange | Output (LEDC Ch 0) | 50 Hz PWM, 1000–2000 µs |
+| **26**| `PIN_ESC_RIGHT` | Right Motor ESC | PWM White/Orange | Output (LEDC Ch 1) | 50 Hz PWM, 1000–2000 µs |
+| **27**| `PIN_SERVO_PAN` | Camera Gimbal Pan Servo | Signal | Output (LEDC Ch 2) | 50 Hz, 500–2500 µs |
+| **32**| `PIN_SERVO_TILT` | Camera Gimbal Tilt Servo | Signal | Output (LEDC Ch 3) | 50 Hz, 500–2500 µs |
+| **34**| `PIN_BATT_MOTOR` | Motor LiPo Divider | Divider Midpoint | Input (ADC1, input only) | 11:1 ratio (10kΩ / 1kΩ) |
+| **35**| `PIN_BATT_LOGIC` | Logic Battery Divider | Divider Midpoint | Input (ADC1, input only) | 6:1 ratio (10kΩ / 2kΩ) |
+| **3V3**| 3.3V Out | BNO055, INA219 Logic | VCC / VIN | Power Output | 3.3V regulator output |
+| **5V** | 5V In / VBUS | 5V BEC (Logic rail) | 5V Out | Power Input | Clean 5.0V supply for controller |
 | **GND**| Ground | System Common Bus | GND | Power / Reference | Central Ground Bus |
 
 > [!IMPORTANT]
-> **Blocked Pins on ESP32-S3 N8R8:**
-> GPIO **33, 34, 35, 36, and 37** are hardwired to the high-speed Octal SPI PSRAM inside the ESP32-S3 module. **Never connect any external wires or components to these pins**, or the firmware will crash on boot with cache errors.
+> **Classic ESP32 WROOM constraints:** GPIO 6–11 are reserved for module flash. GPIO 1/3 are used by CP2102 UART. GPIO 34/35 are input-only ADC1 pins. This pin map assumes a WROOM module without PSRAM.
 
 ---
 
@@ -105,15 +104,15 @@ Master configuration defined in [`boat-controller/src/config.h`](file:///c:/User
 
 ### 3.1 I²C Bus Wiring (INA219 & BNO055)
 
-The I²C bus operates at 3.3V logic on GPIO 8 (SDA) and GPIO 9 (SCL). Both sensors share these two lines in parallel.
+The I²C bus operates at 3.3V logic on GPIO 21 (SDA) and GPIO 22 (SCL). Both sensors share these two lines in parallel.
 
 ```
-       ESP32-S3                       INA219 Sensor                  BNO055 9-DOF IMU
+       ESP32 controller               INA219 Sensor                  BNO055 9-DOF IMU
     ┌─────────────┐                  ┌─────────────┐                 ┌─────────────┐
     │     3V3 ────┼──────────────────┼─ VCC        │   ┌─────────────┼─ VIN        │
     │     GND ────┼──────────────────┼─ GND        │   │ ┌───────────┼─ GND        │
-    │  GPIO 8 ────┼──[ I2C SDA ]─────┼─ SDA        └───┼─┼───────────┼─ SDA        │
-    │  GPIO 9 ────┼──[ I2C SCL ]─────┼─ SCL            │ │           │  SCL        │
+    │ GPIO 21 ────┼──[ I2C SDA ]─────┼─ SDA        └───┼─┼───────────┼─ SDA        │
+    │ GPIO 22 ────┼──[ I2C SCL ]─────┼─ SCL            │ │           │  SCL        │
     └─────────────┘                  └─────────────┘   │ │           └─────────────┘
                                                        │ │
                                           3V3 ─────────┘ │
@@ -140,20 +139,20 @@ The INA219 measures high-side current by placing its 0.1Ω onboard shunt resisto
 ```
 
 #### Dual Battery ADC Resistor Dividers (Fallback & Logic)
-Implemented in [`boat-controller/src/battery.h`](file:///c:/Users/anamika%20sakal/Downloads/shashi/boat-esp32-clusteer/boat-controller/src/battery.h):
+Implemented in [`boat-controller/src/battery.h`](boat-controller/src/battery.h):
 
 ```
 1. Motor Battery Fallback Divider (11:1 Ratio):
    Motor LiPo (+) ───[ 10 kΩ Resistor ]───┬───[ 1 kΩ Resistor ]───► GND
                                           │
-                                          └───► ESP32-S3 GPIO 1 (ADC1_CH0)
+                                          └───► ESP32 GPIO 34 (ADC1)
    * 3S LiPo Max (12.6V) ──► 12.6V / 11 = 1.145V into ADC
    * 4S LiPo Max (16.8V) ──► 16.8V / 11 = 1.527V into ADC
 
 2. Logic Battery Divider (6:1 Ratio):
    Logic LiPo (+) ───[ 10 kΩ Resistor ]───┬───[ 2 kΩ Resistor ]───► GND
                                           │
-                                          └───► ESP32-S3 GPIO 2 (ADC1_CH1)
+                                          └───► ESP32 GPIO 35 (ADC1)
    * 2S LiPo Max (8.4V)  ──►  8.4V / 6  = 1.400V into ADC
 ```
 
@@ -161,15 +160,15 @@ Implemented in [`boat-controller/src/battery.h`](file:///c:/Users/anamika%20saka
 
 ### 3.3 GPS Module Wiring (NEO-M8N)
 
-Connected via Hardware Serial UART1 as defined in [`boat-controller/src/gps.h`](file:///c:/Users/anamika%20sakal/Downloads/shashi/boat-esp32-clusteer/boat-controller/src/gps.h):
+Connected via Hardware Serial UART1 as defined in [`boat-controller/src/gps.h`](boat-controller/src/gps.h):
 
 ```
-       ESP32-S3                         NEO-M8N GPS
+       ESP32 controller                 NEO-M8N GPS
     ┌──────────────┐                 ┌──────────────┐
     │      5V  ────┼─────────────────┼─ VCC         │ (from clean 5V BEC)
     │     GND  ────┼─────────────────┼─ GND         │
-    │ GPIO 18  ────┼──[ RX1 ◄── TX ]─┼─ TXD         │
-    │ GPIO 19  ────┼──[ TX1 ──► RX ]─┼─ RXD         │
+    │ GPIO 16  ────┼──[ RX1 ◄── TX ]─┼─ TXD         │
+    │ GPIO 17  ────┼──[ TX1 ──► RX ]─┼─ RXD         │
     └──────────────┘                 └──────────────┘
 ```
 
@@ -180,15 +179,15 @@ Connected via Hardware Serial UART1 as defined in [`boat-controller/src/gps.h`](
 
 ### 3.4 24GHz mmWave Radar Wiring (HLK-LD2450)
 
-Connected via Hardware Serial UART2 as defined in [`boat-controller/src/radar.h`](file:///c:/Users/anamika%20sakal/Downloads/shashi/boat-esp32-clusteer/boat-controller/src/radar.h):
+Connected via Hardware Serial UART2 as defined in [`boat-controller/src/radar.h`](boat-controller/src/radar.h):
 
 ```
-       ESP32-S3                        HLK-LD2450 Radar
+       ESP32 controller                HLK-LD2450 Radar
     ┌──────────────┐                 ┌──────────────────┐
     │      5V  ────┼─────────────────┼─ VCC (5V Required│
     │     GND  ────┼─────────────────┼─ GND             │
-    │ GPIO 20  ────┼──[ RX2 ◄── TX ]─┼─ TX              │
-    │ GPIO 21  ────┼──[ TX2 ──► RX ]─┼─ RX              │
+    │ GPIO 18  ────┼──[ RX2 ◄── TX ]─┼─ TX              │
+    │ GPIO 19  ────┼──[ TX2 ──► RX ]─┼─ RX              │
     └──────────────┘                 └──────────────────┘
 ```
 
@@ -199,13 +198,13 @@ Connected via Hardware Serial UART2 as defined in [`boat-controller/src/radar.h`
 
 ### 3.5 ESC & Motor Wiring (Differential Thrust)
 
-Bidirectional brushless ESCs (1500µs neutral) controlled via [`boat-controller/src/motors.h`](file:///c:/Users/anamika%20sakal/Downloads/shashi/boat-esp32-clusteer/boat-controller/src/motors.h):
+Bidirectional brushless ESCs (1500µs neutral) controlled via [`boat-controller/src/motors.h`](boat-controller/src/motors.h):
 
 ```
                         ┌──────────────────────────────────────────────┐
-                        │              ESP32-S3 Master                 │
+                        │          Classic ESP32 Sensor Controller     │
                         │                                              │
-                        │   GPIO 4 (LEDC 0)          GPIO 5 (LEDC 1)   │
+                        │   GPIO 25 (LEDC 0)         GPIO 26 (LEDC 1) │
                         └──────┬────────────────────────────┬──────────┘
                                │ White (Signal)             │ White (Signal)
                                ▼                            ▼
@@ -230,13 +229,13 @@ Bidirectional brushless ESCs (1500µs neutral) controlled via [`boat-controller/
 
 ### 3.6 Pan / Tilt Gimbal Servos Wiring
 
-Operated via [`boat-controller/src/servos.h`](file:///c:/Users/anamika%20sakal/Downloads/shashi/boat-esp32-clusteer/boat-controller/src/servos.h):
+Operated via [`boat-controller/src/servos.h`](boat-controller/src/servos.h):
 
 ```
-       ESP32-S3                        Pan Servo                 Tilt Servo
+       ESP32 controller                Pan Servo                 Tilt Servo
     ┌──────────────┐                 ┌───────────┐             ┌───────────┐
-    │  GPIO 6 ─────┼───[ Signal ]────┼─ Orange   │             │           │
-    │  GPIO 7 ─────┼───[ Signal ]────┼───────────┼─────────────┼─ Orange   │
+    │ GPIO 27 ─────┼───[ Signal ]────┼─ Orange   │             │           │
+    │ GPIO 32 ─────┼───[ Signal ]────┼───────────┼─────────────┼─ Orange   │
     │     GND ─────┼───[ Ref GND ]───┼─ Brown    │     ┌───────┼─ Brown    │
     └──────────────┘                 └─────┬─────┘     │       └─────┬─────┘
                                            │           │             │
@@ -248,7 +247,7 @@ Operated via [`boat-controller/src/servos.h`](file:///c:/Users/anamika%20sakal/D
 
 ## 4. Camera Streamer Node (ESP32-CAM) Wiring
 
-The ESP32-CAM operates as an independent Wi-Fi client running [`cam-streamer/src/main.cpp`](file:///c:/Users/anamika%20sakal/Downloads/shashi/boat-esp32-clusteer/cam-streamer/src/main.cpp).
+The ESP32-CAM operates as an independent Wi-Fi client running [`cam-streamer/src/main.cpp`](cam-streamer/src/main.cpp).
 
 ### 4.1 Operational Wiring (Normal Run Mode)
 
@@ -267,7 +266,7 @@ The ESP32-CAM operates as an independent Wi-Fi client running [`cam-streamer/src
 
 ### 4.2 Flashing / Programming Wiring (FTDI / USB-UART)
 
-To flash firmware using [`deploy/flash_cam.ps1`](file:///c:/Users/anamika%20sakal/Downloads/shashi/boat-esp32-clusteer/deploy/flash_cam.ps1):
+To flash firmware using [`deploy/flash_cam.ps1`](deploy/flash_cam.ps1):
 
 ```
        USB-to-UART Adapter (FTDI)               ESP32-CAM
@@ -306,7 +305,7 @@ To flash firmware using [`deploy/flash_cam.ps1`](file:///c:/Users/anamika%20saka
 1. **Large Low-ESR Capacitor on 5V BEC Output:**
    Place a **470µF to 1000µF 10V electrolytic capacitor** across the 5V and GND rails feeding the servos and ESP32-CAM to absorb servo inductive kickback and prevent camera brownouts.
 2. **Motor EMI Suppression:**
-   Keep the high-frequency ESC and motor wires physically separated (at least 5cm) from the I²C bus wires (`GPIO 8`, `GPIO 9`) and GPS antenna cable.
+   Keep the high-frequency ESC and motor wires physically separated (at least 5cm) from the I²C bus wires (`GPIO 21`, `GPIO 22`) and GPS antenna cable.
 3. **Twisted Pairs:**
    Twist the `SDA` + `GND` and `SCL` + `GND` lines, or run them with ground shielding, to prevent motor EMI from locking up the BNO055 I²C bus.
 4. **GPS Antenna Orientation:**

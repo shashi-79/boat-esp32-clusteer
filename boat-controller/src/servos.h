@@ -6,6 +6,8 @@
 #include <Arduino.h>
 #include "config.h"
 
+static void servosCenterAll();
+
 static void servosSetup() {
     // Camera servos
     ledcSetup(LEDC_CH_PAN,  SERVO_FREQ_HZ, 16);

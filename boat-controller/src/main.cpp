@@ -1,9 +1,9 @@
 // ============================================================
-// BOAT CONTROLLER — Main Entry Point (ESP32-S3)
+// BOAT SENSOR CONTROLLER — Main Entry Point (Classic ESP32)
 // ============================================================
 // Architecture:
 //   1. Hosts Wi-Fi SoftAP ("RescueBoat-GCS") for direct Phone & ESP32-CAM connection
-//   2. Serves Tactical Web GCS HUD (Joysticks, Minimap, FPV stream)
+//   2. Serves the control WebSocket; the phone hosts the HUD locally
 //   3. Non-blocking cooperative loop: IMU, GPS, mmWave Radar, Battery, Servos, Motors
 //   4. Autonomous Safety & Return-To-Home (RTH) on phone disconnect (>1.5s)
 // ============================================================
@@ -41,8 +41,13 @@ void setup() {
     delay(500);  // USB CDC settling
 
     Serial.println("========================================");
-    Serial.println("  RESCUE BOAT — S3 Controller v2.0");
+    Serial.println("  RESCUE BOAT — ESP32 Sensor Controller v2.0");
     Serial.println("========================================");
+    Serial.printf("[MEM] flash=%u sketch=%u freeSketch=%u freeHeap=%u\n",
+        static_cast<unsigned>(ESP.getFlashChipSize()),
+        static_cast<unsigned>(ESP.getSketchSize()),
+        static_cast<unsigned>(ESP.getFreeSketchSpace()),
+        static_cast<unsigned>(ESP.getFreeHeap()));
 
     // 1. Start Wi-Fi SoftAP for Phone and ESP32-CAM
     WiFi.mode(WIFI_AP);
@@ -89,17 +94,20 @@ void loop() {
     // --- 50 Hz: Motor & Servo Control Loop ---
     if (now - lastMotors >= INTERVAL_MOTORS) {
         lastMotors = now;
+        const ControlSnapshot control = webControlSnapshot();
 
         // Safety layer determines active mode (handles phone disconnect failsafe)
         uint8_t mode = safetyProcess(
-            ctrlArm,
-            ctrlEstop,
-            ctrlMode,
+            control.arm,
+            control.estop,
+            control.mode,
             webIsPhoneConnected(),
             gpsHasFix(),
             gpsSats(),
             gpsFixType(),
-            batteryMotorLow()
+            batteryMotorLow(),
+            imuHealthy(),
+            batteryMotorReadingValid()
         );
 
         // Record Home GPS coordinate upon ARM
@@ -111,11 +119,11 @@ void loop() {
         switch (mode) {
             case MODE_MANUAL:
                 if (safetyIsArmed()) {
-                    motorsMix(ctrlThrottle, ctrlYaw);
-                    servosSetCamera(ctrlCamPan, ctrlCamTilt);
+                    motorsMix(control.throttle, control.yaw);
+                    servosSetCamera(control.camPan, control.camTilt);
                 } else {
                     motorsSetNeutral();
-                    servosSetCamera(ctrlCamPan, ctrlCamTilt);
+                    servosSetCamera(control.camPan, control.camTilt);
                 }
                 rthActive = false;
                 break;
@@ -173,7 +181,13 @@ void loop() {
             radarGetDist(),
             radarGetAngle(),
             safetyIsArmed() ? 1 : 0,
-            safetyGetMode()
+            safetyGetMode(),
+            gpsHasFix(),
+            imuHealthy(),
+            batteryMotorReadingValid(),
+            radarIsHealthy(),
+            batteryLogicReadingValid(),
+            batteryHasIna219()
         );
     }
 

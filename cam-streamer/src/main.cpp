@@ -1,7 +1,7 @@
 // ============================================================
 // CAMERA STREAMER — ESP32-CAM (AI-Thinker OV2640 Module)
 // ============================================================
-// Connects to S3 SoftAP ("RescueBoat-GCS") as client 192.168.4.2
+// Connects to the sensor controller SoftAP ("RescueBoat-GCS") as client 192.168.4.2
 // Serves low-latency MJPEG video stream on port 81 (/stream)
 // ============================================================
 
@@ -28,16 +28,20 @@
 #define HREF_GPIO_NUM     23
 #define PCLK_GPIO_NUM     22
 
-// --- Wi-Fi Credentials (Connects to S3 SoftAP) ---
+// --- Wi-Fi Credentials (Connects to sensor controller SoftAP) ---
 #define WIFI_SSID         "RescueBoat-GCS"
 #define WIFI_PASSWORD     "rescue2026"
 
-// Static IP configuration on S3 AP network
+// Static IP configuration on controller AP network
 static IPAddress local_IP(192, 168, 4, 2);
 static IPAddress gateway(192, 168, 4, 1);
 static IPAddress subnet(255, 255, 255, 0);
 
 static httpd_handle_t stream_httpd = NULL;
+static bool cameraReady = false;
+static uint32_t lastWifiAttemptMs = 0;
+static uint32_t lastCameraAttemptMs = 0;
+static uint32_t lastServerAttemptMs = 0;
 
 #define PART_BOUNDARY "123456789000000000000987654321"
 static const char* _STREAM_CONTENT_TYPE = "multipart/x-mixed-replace;boundary=" PART_BOUNDARY;
@@ -55,7 +59,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
     res = httpd_resp_set_type(req, _STREAM_CONTENT_TYPE);
     if (res != ESP_OK) return res;
 
-    // Set CORS headers so the phone web UI at 192.168.4.1 can fetch images cleanly
+    // Keep the stream usable from the phone's locally hosted HUD page.
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 
     while (true) {
@@ -105,7 +109,7 @@ static esp_err_t stream_handler(httpd_req_t *req) {
     return res;
 }
 
-static void startCameraServer() {
+static bool startCameraServer() {
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.server_port = 81;
     config.ctrl_port = 32768;
@@ -118,21 +122,19 @@ static void startCameraServer() {
     };
 
     if (httpd_start(&stream_httpd, &config) == ESP_OK) {
-        httpd_register_uri_handler(stream_httpd, &stream_uri);
+        if (httpd_register_uri_handler(stream_httpd, &stream_uri) != ESP_OK) {
+            httpd_stop(stream_httpd);
+            stream_httpd = NULL;
+            return false;
+        }
         Serial.println("[CAM] Stream server started at http://192.168.4.2:81/stream");
+        return true;
     }
+    return false;
 }
 
-void setup() {
-    Serial.begin(115200);
-    delay(500);
-
-    Serial.println("========================================");
-    Serial.println("  RESCUE BOAT — Camera Node (OV2640)");
-    Serial.println("========================================");
-
-    // 1. Camera Configuration
-    camera_config_t config;
+static bool initCamera() {
+    camera_config_t config = {};
     config.ledc_channel = LEDC_CHANNEL_0;
     config.ledc_timer = LEDC_TIMER_0;
     config.pin_d0 = Y2_GPIO_NUM;
@@ -172,9 +174,23 @@ void setup() {
     esp_err_t err = esp_camera_init(&config);
     if (err != ESP_OK) {
         Serial.printf("[ERR] Camera init failed with error 0x%x\n", err);
-        return;
+        return false;
     }
     Serial.println("[CAM] OV2640 sensor initialized");
+    return true;
+}
+
+void setup() {
+    Serial.begin(115200);
+    delay(500);
+
+    Serial.println("========================================");
+    Serial.println("  RESCUE BOAT — Camera Node (OV2640)");
+    Serial.println("========================================");
+
+    // 1. Camera Configuration
+    cameraReady = initCamera();
+    lastCameraAttemptMs = millis();
 
     // 2. Connect to Boat Controller SoftAP
     WiFi.mode(WIFI_STA);
@@ -183,7 +199,7 @@ void setup() {
     }
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-    Serial.print("[WIFI] Connecting to S3 SoftAP");
+    Serial.print("[WIFI] Connecting to controller SoftAP");
     uint32_t startAttempt = millis();
     while (WiFi.status() != WL_CONNECTED && (millis() - startAttempt < 15000)) {
         delay(500);
@@ -193,22 +209,33 @@ void setup() {
     if (WiFi.status() == WL_CONNECTED) {
         Serial.println(" Connected!");
         Serial.printf("[WIFI] Cam IP: %s\n", WiFi.localIP().toString().c_str());
-        startCameraServer();
+        if (cameraReady) {
+            startCameraServer();
+            lastServerAttemptMs = millis();
+        }
     } else {
         Serial.println("\n[WARN] Connection timeout — will retry in loop");
     }
 }
 
 void loop() {
-    // Reconnection watchdog if disconnected from S3
-    if (WiFi.status() != WL_CONNECTED) {
-        Serial.println("[WIFI] Reconnecting to S3...");
+    const uint32_t now = millis();
+    if (WiFi.status() != WL_CONNECTED && now - lastWifiAttemptMs >= 5000) {
+        Serial.println("[WIFI] Reconnecting to controller...");
         WiFi.disconnect();
         WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-        delay(5000);
-        if (WiFi.status() == WL_CONNECTED && stream_httpd == NULL) {
-            startCameraServer();
-        }
+        lastWifiAttemptMs = now;
     }
-    delay(1000);
+
+    if (!cameraReady && now - lastCameraAttemptMs >= 10000) {
+        lastCameraAttemptMs = now;
+        cameraReady = initCamera();
+    }
+
+    if (WiFi.status() == WL_CONNECTED && cameraReady && stream_httpd == NULL &&
+        now - lastServerAttemptMs >= 5000) {
+        lastServerAttemptMs = now;
+        if (!startCameraServer()) Serial.println("[WARN] Stream server start failed; will retry");
+    }
+    delay(20);
 }

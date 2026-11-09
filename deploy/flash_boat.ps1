@@ -7,7 +7,7 @@ param (
 $ErrorActionPreference = "Stop"
 
 Write-Host "========================================" -ForegroundColor Cyan
-Write-Host " Boat Controller Flash Tool (ESP32-S3)" -ForegroundColor Cyan
+Write-Host " Boat Sensor Controller Flash Tool (ESP32-WROOM-32U profile)" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -39,7 +39,7 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Write-Host "[2/3] Uploading to ESP32-S3..." -ForegroundColor Yellow
+Write-Host "[2/3] Uploading to classic ESP32..." -ForegroundColor Yellow
 $uploadArgs = @("run", "-e", "boat", "-t", "upload")
 if ($Port -ne "") {
     $uploadArgs += @("--upload-port", $Port)
@@ -49,7 +49,7 @@ if ($Port -ne "") {
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "[WARN] Upload failed." -ForegroundColor Red
-    Write-Host "Tip: Hold the BOOT button on the ESP32-S3 board while plugging in USB, then re-run." -ForegroundColor Yellow
+    Write-Host "Tip: Hold BOOT while resetting the CP2102-connected ESP32, then re-run." -ForegroundColor Yellow
     exit $LASTEXITCODE
 }
 
