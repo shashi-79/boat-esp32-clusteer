@@ -12,10 +12,13 @@ static Adafruit_BNO055 bno = Adafruit_BNO055(55, 0x28, &Wire);
 static bool imuReady = false;
 static float imuHeading = 0.0f;
 static uint32_t imuLastReadMs = 0;
+static uint32_t imuLastInitAttempt = 0;
+static uint8_t imuErrorCount = 0;
 
 static void imuSetup() {
     Wire.begin(PIN_I2C_SDA, PIN_I2C_SCL);
 
+    imuLastInitAttempt = millis();
     if (!bno.begin()) {
         DBG("IMU: BNO055 NOT FOUND! Check wiring.");
         imuReady = false;
@@ -24,25 +27,48 @@ static void imuSetup() {
 
     bno.setExtCrystalUse(true);
     imuReady = true;
+    imuErrorCount = 0;
     DBG("IMU: BNO055 initialized (fusion mode)");
 }
 
 // --- Call in main loop (non-blocking, ~10ms per read) ---
 static void imuUpdate() {
-    if (!imuReady) return;
+    uint32_t now = millis();
+
+    // Auto-recover if IMU was temporarily offline
+    if (!imuReady) {
+        if (now - imuLastInitAttempt >= 2000) {
+            imuLastInitAttempt = now;
+            if (bno.begin()) {
+                bno.setExtCrystalUse(true);
+                imuReady = true;
+                imuErrorCount = 0;
+                DBG("IMU: BNO055 re-connected successfully");
+            }
+        }
+        return;
+    }
 
     sensors_event_t event;
     if (!bno.getEvent(&event)) {
-        imuReady = false;
+        if (++imuErrorCount >= 25) { // 500ms at 50Hz
+            imuReady = false;
+        }
         return;
     }
 
     // BNO055 returns heading in event.orientation.x (0–360 degrees)
-    if (isfinite(event.orientation.x) && event.orientation.x >= 0.0f && event.orientation.x < 360.0f) {
-        imuHeading = event.orientation.x;
-        imuLastReadMs = millis();
+    if (isfinite(event.orientation.x)) {
+        float h = event.orientation.x;
+        while (h >= 360.0f) h -= 360.0f;
+        while (h < 0.0f) h += 360.0f;
+        imuHeading = h;
+        imuLastReadMs = now;
+        imuErrorCount = 0;
     } else {
-        imuReady = false;
+        if (++imuErrorCount >= 25) {
+            imuReady = false;
+        }
     }
 }
 

@@ -9,11 +9,13 @@
 static float rthIntegral   = 0.0f;
 static float rthPrevError  = 0.0f;
 static uint32_t rthLastTime = 0;
+static bool rthFirstStep   = true;
 
 // --- Reset PID state (call when entering RTH mode) ---
 static void rthReset() {
     rthIntegral  = 0.0f;
     rthPrevError = 0.0f;
+    rthFirstStep = true;
     rthLastTime  = millis();
     DBG("RTH: PID reset");
 }
@@ -45,8 +47,13 @@ static int16_t rthComputeYaw(float bearing, float heading, float distance) {
     // Time delta
     uint32_t now = millis();
     float dt = (now - rthLastTime) / 1000.0f;
-    if (dt <= 0.0f || dt > 1.0f) dt = 0.04f;  // Clamp for sanity
+    if (dt <= 0.0f || dt > 1.0f) dt = 0.02f;  // Default to 50Hz interval
     rthLastTime = now;
+
+    if (rthFirstStep) {
+        rthPrevError = error;
+        rthFirstStep = false;
+    }
 
     // PID
     rthIntegral += error * dt;

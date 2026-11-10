@@ -388,6 +388,12 @@
       color: #05140b;
       box-shadow: 0 0 24px rgba(0, 255, 170, 0.7);
     }
+    .btn-arm.estop-latched {
+      background: linear-gradient(145deg, #422d05, #261a03);
+      border-color: #ffb700;
+      color: #ffb700;
+      animation: pulse 1s infinite ease-in-out;
+    }
     .btn-arm .icon { font-size: 20px; font-weight: bold; }
     .btn-arm .sub { font-size: 9px; font-weight: 800; letter-spacing: 0.5px; margin-top: 2px; }
 
@@ -490,14 +496,17 @@
     .btn-act { width:clamp(44px, 8vh, 62px); height:clamp(44px, 8vh, 62px); }
     .btn-estop .icon, .btn-arm .icon { font-size:16px; }
     .btn-act .sub { font-size:7px; }
-    #badge-link, #badge-mode { position:absolute; top:max(10px, env(safe-area-inset-top)); z-index:25; }
+    #badge-link, #badge-mode, #badge-cam-res { position:absolute; top:max(10px, env(safe-area-inset-top)); z-index:25; }
     #badge-link { left:50%; transform:translateX(-50%); }
-    #badge-mode { left:50%; transform:translateX(-50%); margin-top:30px; }
+    #badge-mode { left:50%; transform:translateX(-50%); margin-top:28px; }
+    #badge-cam-res { left:50%; transform:translateX(-50%); margin-top:54px; font-size:10px; padding:3px 8px; white-space:nowrap; }
+    #badge-cam-res.manual { background:rgba(255, 153, 0, 0.15); border-color:rgba(255, 153, 0, 0.45); color:#ffaa33; }
     #btn-cam { position:absolute; z-index:25; top:max(10px, env(safe-area-inset-top)); right:calc(max(10px, env(safe-area-inset-right)) + var(--map-size) + 7px); border-radius:20px; padding:7px 9px; font-size:9px; }
     #btn-settings { position:absolute; z-index:45; top:calc(max(10px, env(safe-area-inset-top)) + 34px); right:calc(max(10px, env(safe-area-inset-right)) + var(--map-size) + 7px); border-radius:50%; width:32px; height:32px; }
     #settings-panel {
       display:none; position:absolute; z-index:60; top:calc(max(50px, env(safe-area-inset-top) + 44px));
       right:calc(max(10px, env(safe-area-inset-right)) + var(--map-size) + 7px); width:min(210px,44vw);
+      max-height:calc(100vh - 70px); overflow-y:auto;
       padding:10px; gap:9px; border:1px solid var(--panel-border); border-radius:10px;
       background:rgba(5,14,22,.95); backdrop-filter:blur(12px); pointer-events:auto; font:11px monospace;
     }
@@ -505,6 +514,8 @@
     #settings-panel label { display:grid; gap:4px; color:var(--text-muted); }
     #settings-panel input[type=range] { width:100%; accent-color:var(--accent-green); }
     #settings-panel input[type=text] { width:100%; padding:6px; color:var(--text-main); background:#101e2a; border:1px solid #294354; border-radius:5px; }
+    #settings-panel select { width:100%; padding:6px; color:var(--text-main); background:#101e2a; border:1px solid #294354; border-radius:5px; font:inherit; }
+    #settings-panel select:disabled, #settings-panel input:disabled { opacity:0.38; cursor:not-allowed; }
     #settings-panel button { padding:6px; border-radius:5px; }
     #alert-toast { top:50%; }
     #sim-mode { display:none; }
@@ -528,12 +539,36 @@
   <div class="status-badges">
     <div id="badge-link" class="badge badge-conn">DISCONNECTED</div>
     <div id="badge-mode" class="badge badge-mode">MANUAL</div>
+    <div id="badge-cam-res" class="badge badge-mode">VGA · Q12 (AUTO)</div>
   </div>
   <button id="btn-cam" class="badge badge-btn" aria-label="Camera stream status and retry">CAM: WAIT</button>
   <button id="btn-settings" aria-label="Open HUD settings" title="HUD settings">⚙</button>
   <div id="settings-panel" role="dialog" aria-label="HUD settings">
     <label>Controller IP<input id="controller-host" type="text" value="192.168.4.1" inputmode="decimal"></label>
     <button id="apply-host" class="mini-action">CONNECT</button>
+    <label>Camera Host / IP<input id="cam-host" type="text" value="192.168.4.2" placeholder="192.168.4.2"></label>
+    <label>Camera Scaling Mode
+      <select id="cam-scaling-mode">
+        <option value="auto">AUTO (GPS + Signal Fusion)</option>
+        <option value="signal">AUTO (Signal RSSI Only)</option>
+        <option value="range">AUTO (GPS Range Only)</option>
+        <option value="manual">MANUAL (Override)</option>
+      </select>
+    </label>
+    <label>Manual Resolution
+      <select id="cam-select-res" disabled>
+        <option value="8">VGA (640x480)</option>
+        <option value="6">CIF (400x296)</option>
+        <option value="5">QVGA (320x240)</option>
+        <option value="1">QQVGA (160x120)</option>
+      </select>
+    </label>
+    <label>Manual Quality <output id="cam-quality-val">12</output>
+      <input id="cam-select-quality" type="range" min="10" max="30" value="12" disabled>
+    </label>
+    <label>Manual Frame Rate <output id="cam-fps-val">25</output> FPS
+      <input id="cam-select-fps" type="range" min="5" max="30" value="25" disabled>
+    </label>
     <label>Minimap size <output id="map-size-value">116 px</output><input id="map-size-control" type="range" min="84" max="210" value="116"></label>
     <label>Control response <output id="sensitivity-value">100%</output><input id="sensitivity-control" type="range" min="50" max="150" value="100"></label>
   </div>
@@ -547,7 +582,7 @@
     <!-- Telemetry Panel -->
     <div class="dashboard-panel">
       <div class="panel-title"><span>BOAT STATUS</span><button id="telemetry-toggle" aria-expanded="true" title="Minimize telemetry">−</button></div>
-      <div class="compact-summary" id="compact-summary">--V · GPS -- · --m/s · RADAR --</div>
+      <div class="compact-summary" id="compact-summary">--V · GPS -- · --m/s · RADAR -- · CAM VGA</div>
       <div class="telemetry-detail">
 
       <!-- Battery M (INA219 Live Percentage + Current) -->
@@ -585,6 +620,21 @@
       <div class="stat-row">
         <span class="stat-label">Home Distance</span>
         <span class="stat-val"><span id="val-hd">--</span> m</span>
+      </div>
+
+      <div class="stat-row">
+        <span class="stat-label">Camera Stream</span>
+        <span class="stat-val" id="val-cam-info">VGA · Q12 (AUTO)</span>
+      </div>
+
+      <div class="stat-row">
+        <span class="stat-label">Camera Frame Rate</span>
+        <span class="stat-val"><span id="val-cam-fps">--</span> FPS</span>
+      </div>
+
+      <div class="stat-row">
+        <span class="stat-label">Wi-Fi Signal (RSSI)</span>
+        <span class="stat-val"><span id="val-rssi">--</span> dBm</span>
       </div>
 
       <div class="stat-row">
@@ -632,7 +682,7 @@
 
   </div>
 
-  <div id="sim-mode">Connected to S3 AP (192.168.4.1)</div>
+  <div id="sim-mode">Connected to AP (192.168.4.1)</div>
 
   <script>
     // System State
@@ -660,7 +710,11 @@
       rd: 0,
       ra: 0,
       arm: 0,
-      mode: 0
+      mode: 0,
+      gpsok: false,
+      imuok: false,
+      battok: false,
+      radarok: false
     };
 
     let simActive = false;
@@ -668,9 +722,43 @@
     let controlSensitivity = Number(localStorage.getItem('boat-control-sensitivity') || 100) / 100;
     let reconnectTimer = null;
 
+    // Camera Tier Configurations (Range-Based Adaptive Scaling)
+    const CAM_TIERS = {
+      1: { framesize: 8, name: 'VGA', resolution: '640x480', quality: 12, fps: 25 },
+      2: { framesize: 6, name: 'CIF', resolution: '400x296', quality: 14, fps: 20 },
+      3: { framesize: 5, name: 'QVGA', resolution: '320x240', quality: 18, fps: 15 },
+      4: { framesize: 1, name: 'QQVGA', resolution: '160x120', quality: 24, fps: 10 }
+    };
+
+    const CAM_RATE_LIMIT_MS = 2500;
+    const CAM_HYST_METERS = 2.5;
+    const CAM_HYST_RSSI = 3.0;
+
+    // Camera State
+    let camMode = localStorage.getItem('boat-cam-mode') || 'auto';
+    let camManualRes = Number(localStorage.getItem('boat-cam-res') || 8);
+    let camManualQuality = Number(localStorage.getItem('boat-cam-quality') || 12);
+    let camManualFps = Number(localStorage.getItem('boat-cam-fps') || 25);
+    let camHost = localStorage.getItem('boat-cam-host') || '192.168.4.2';
+
+    let activeCamFramesize = 8;
+    let activeCamQuality = 12;
+    let activeCamFps = 25;
+    let liveCamFps = 0.0;
+    let activeCamTier = 1;
+
+    let lastCamRequestTime = 0;
+    let camRequestInFlight = false;
+    let pendingCamTier = null;
+    let camRateLimitTimer = null;
+    let camReconnectTimer = null;
+
     // Elements
     const badgeLink = document.getElementById('badge-link');
     const badgeMode = document.getElementById('badge-mode');
+    const badgeCamRes = document.getElementById('badge-cam-res');
+    const valCamInfo = document.getElementById('val-cam-info');
+    const valCamFps = document.getElementById('val-cam-fps');
     const btnArm = document.getElementById('btn-arm');
     const labelArm = document.getElementById('label-arm');
     const btnEstop = document.getElementById('btn-estop');
@@ -678,27 +766,333 @@
     const dashboard = document.querySelector('.dashboard-panel');
     const settingsPanel = document.getElementById('settings-panel');
     const hostInput = document.getElementById('controller-host');
+    const camHostInput = document.getElementById('cam-host');
+    const camScalingModeSelect = document.getElementById('cam-scaling-mode');
+    const camSelectRes = document.getElementById('cam-select-res');
+    const camSelectQuality = document.getElementById('cam-select-quality');
+    const camQualityVal = document.getElementById('cam-quality-val');
+    const camSelectFps = document.getElementById('cam-select-fps');
+    const camFpsVal = document.getElementById('cam-fps-val');
     const fpvStream = document.getElementById('fpv-stream');
     const alertToast = document.getElementById('alert-toast');
     const canvas = document.getElementById('radar-canvas');
     const ctx = canvas.getContext('2d');
 
-    // Camera Toggle
+    // Camera Helper Functions
+    function getFramesizeName(fs) {
+      switch (Number(fs)) {
+        case 9: return 'SVGA';
+        case 8: return 'VGA';
+        case 6: return 'CIF';
+        case 5: return 'QVGA';
+        case 1: return 'QQVGA';
+        default: return `FS${fs}`;
+      }
+    }
+
+    function getTierFromFramesize(fs) {
+      switch (Number(fs)) {
+        case 8: return 1;
+        case 6: return 2;
+        case 5: return 3;
+        case 1: return 4;
+        default: return 1;
+      }
+    }
+
+    function getCamBaseHost() {
+      const val = (camHostInput && camHostInput.value) ? camHostInput.value.trim() : camHost;
+      return (val || '192.168.4.2').replace(/^http:\/\//, '').replace(/\/.*$/, '');
+    }
+
+    function getCamStreamUrl() {
+      let host = getCamBaseHost();
+      if (!host.includes(':')) {
+        host = `${host}:81`;
+      }
+      return `http://${host}/stream?t=${Date.now()}`;
+    }
+
+    function updateCamUI() {
+      const resName = getFramesizeName(activeCamFramesize);
+      const isAuto = (camMode !== 'manual');
+      let modeTag = 'AUTO';
+      if (camMode === 'manual') modeTag = 'MAN';
+      else if (camMode === 'signal') modeTag = 'SIG';
+      else if (camMode === 'range') modeTag = 'GPS';
+
+      const rssiVal = (lastTelemetry && lastTelemetry.rssi && lastTelemetry.rssi < 0) ? lastTelemetry.rssi : null;
+      const sigPrefix = (rssiVal !== null) ? `📶 ${rssiVal}dBm · ` : '';
+      const fpsStr = (liveCamFps > 0) ? ` · ${liveCamFps.toFixed(0)}fps` : '';
+      const infoStr = `${sigPrefix}${resName} · Q${activeCamQuality}${fpsStr} (${modeTag})`;
+
+      if (badgeCamRes) {
+        badgeCamRes.textContent = infoStr;
+        if (isAuto) {
+          badgeCamRes.classList.remove('manual');
+        } else {
+          badgeCamRes.classList.add('manual');
+        }
+      }
+
+      if (valCamInfo) {
+        valCamInfo.textContent = `${resName} · Q${activeCamQuality} (${modeTag})`;
+      }
+
+      if (valCamFps) {
+        valCamFps.textContent = (liveCamFps > 0) ? liveCamFps.toFixed(1) : String(activeCamFps || 25);
+      }
+
+      const elRssi = document.getElementById('val-rssi');
+      if (elRssi) {
+        elRssi.textContent = (rssiVal !== null) ? String(rssiVal) : '--';
+      }
+
+      if (camQualityVal && camSelectQuality) {
+        camQualityVal.textContent = String(camSelectQuality.value);
+      }
+      if (camFpsVal && camSelectFps) {
+        camFpsVal.textContent = String(camSelectFps.value);
+      }
+    }
+
+    // Distance-Based Tier Computation with Hysteresis
+    function computeTierFromDist(currentTier, d, gpsok) {
+      if (d === undefined || d === null || isNaN(d) || d < 0 || d >= 9000 || !gpsok) {
+        return null;
+      }
+
+      const HYST = CAM_HYST_METERS; // 2.5m
+      const T1_UP = 18.0 + HYST;     // 20.5m
+      const T2_DOWN = 18.0 - HYST;   // 15.5m
+      const T2_UP = 38.0 + HYST;     // 40.5m
+      const T3_DOWN = 38.0 - HYST;   // 35.5m
+      const T3_UP = 55.0 + HYST;     // 57.5m
+      const T4_DOWN = 55.0 - HYST;   // 52.5m
+
+      const tier = currentTier || 1;
+
+      if (tier === 1) {
+        if (d > T3_UP) return 4;
+        if (d > T2_UP) return 3;
+        if (d > T1_UP) return 2;
+        return 1;
+      } else if (tier === 2) {
+        if (d > T3_UP) return 4;
+        if (d > T2_UP) return 3;
+        if (d < T2_DOWN) return 1;
+        return 2;
+      } else if (tier === 3) {
+        if (d > T3_UP) return 4;
+        if (d < T2_DOWN) return 1;
+        if (d < T3_DOWN) return 2;
+        return 3;
+      } else if (tier === 4) {
+        if (d < T2_DOWN) return 1;
+        if (d < T3_DOWN) return 2;
+        if (d < T4_DOWN) return 3;
+        return 4;
+      }
+      return 1;
+    }
+
+    // Signal Strength (RSSI in dBm) Tier Computation with Hysteresis
+    function computeTierFromRssi(currentTier, rssi) {
+      if (rssi === undefined || rssi === null || isNaN(rssi) || rssi >= 0 || rssi < -120) {
+        return null;
+      }
+
+      const HYST = CAM_HYST_RSSI; // 3.0 dBm
+      // Threshold 1: -65 dBm (Tier 1 <-> 2)
+      const R1_DOWN = -65.0 - HYST; // -68.0 dBm (weaker triggers Tier 2)
+      const R2_UP   = -65.0 + HYST; // -62.0 dBm (stronger triggers Tier 1)
+      // Threshold 2: -73 dBm (Tier 2 <-> 3)
+      const R2_DOWN = -73.0 - HYST; // -76.0 dBm (weaker triggers Tier 3)
+      const R3_UP   = -73.0 + HYST; // -70.0 dBm (stronger triggers Tier 2)
+      // Threshold 3: -80 dBm (Tier 3 <-> 4)
+      const R3_DOWN = -80.0 - HYST; // -83.0 dBm (weaker triggers Tier 4)
+      const R4_UP   = -80.0 + HYST; // -77.0 dBm (stronger triggers Tier 3)
+
+      const tier = currentTier || 1;
+
+      if (tier === 1) {
+        if (rssi < R3_DOWN) return 4;
+        if (rssi < R2_DOWN) return 3;
+        if (rssi < R1_DOWN) return 2;
+        return 1;
+      } else if (tier === 2) {
+        if (rssi < R3_DOWN) return 4;
+        if (rssi < R2_DOWN) return 3;
+        if (rssi > R2_UP)   return 1;
+        return 2;
+      } else if (tier === 3) {
+        if (rssi < R3_DOWN) return 4;
+        if (rssi > R2_UP)   return 1;
+        if (rssi > R3_UP)   return 2;
+        return 3;
+      } else if (tier === 4) {
+        if (rssi > R2_UP)   return 1;
+        if (rssi > R3_UP)   return 2;
+        if (rssi > R4_UP)   return 3;
+        return 4;
+      }
+      return 1;
+    }
+
+    // Dual-Metric Adaptive Scaling State Machine (Distance + Signal Strength Fusion)
+    function computeTargetTier(currentTier, d, gpsok, rssi, mode = 'auto') {
+      if (mode === 'signal') {
+        const rTier = computeTierFromRssi(currentTier, rssi);
+        return rTier !== null ? rTier : 1;
+      }
+      if (mode === 'range') {
+        const dTier = computeTierFromDist(currentTier, d, gpsok);
+        return dTier !== null ? dTier : 1;
+      }
+
+      // Default 'auto': Fusion of Range and Signal Strength
+      const dTier = computeTierFromDist(currentTier, d, gpsok);
+      const rTier = computeTierFromRssi(currentTier, rssi);
+
+      if (dTier !== null && rTier !== null) {
+        // Multi-sensor fusion: Pick the safest tier (higher index = lower bandwidth demand).
+        // Protects against GPS drift and RF obstacles.
+        return Math.max(dTier, rTier);
+      } else if (rTier !== null) {
+        // GPS degraded / drifting / no fix: Seamless fallback to Wi-Fi RSSI!
+        return rTier;
+      } else if (dTier !== null) {
+        // RSSI not available yet: Use GPS distance
+        return dTier;
+      }
+      return 1;
+    }
+
+    function sendCamControl(fs, quality, fpsOrMode, mode) {
+      let targetFps = activeCamFps || 25;
+      let effectiveMode = mode || camMode;
+      if (typeof fpsOrMode === 'string') {
+        effectiveMode = fpsOrMode;
+      } else if (typeof fpsOrMode === 'number' && fpsOrMode > 0) {
+        targetFps = fpsOrMode;
+      }
+
+      const host = getCamBaseHost();
+      const url = `http://${host}/control?framesize=${fs}&quality=${quality}&fps=${targetFps}`;
+
+      lastCamRequestTime = Date.now();
+      camRequestInFlight = true;
+
+      fetch(url, { mode: 'cors' })
+        .then(res => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          camRequestInFlight = false;
+          const respFs = (data && data.framesize !== undefined) ? Number(data.framesize) : Number(fs);
+          const respQ = (data && data.quality !== undefined) ? Number(data.quality) : Number(quality);
+          if (data && data.fps !== undefined) {
+            liveCamFps = Number(data.fps);
+          }
+          if (data && data.target_fps !== undefined) {
+            activeCamFps = Number(data.target_fps);
+          } else {
+            activeCamFps = Number(targetFps);
+          }
+          activeCamFramesize = respFs;
+          activeCamQuality = respQ;
+          activeCamTier = getTierFromFramesize(respFs);
+          updateCamUI();
+        })
+        .catch(err => {
+          camRequestInFlight = false;
+          // In simulation or offline mode, still update UI state gracefully
+          activeCamFramesize = Number(fs);
+          activeCamQuality = Number(quality);
+          activeCamFps = Number(targetFps);
+          activeCamTier = getTierFromFramesize(Number(fs));
+          updateCamUI();
+        });
+    }
+
+    function applyCamTier(tier) {
+      const cfg = CAM_TIERS[tier];
+      if (!cfg) return;
+      pendingCamTier = null;
+      if (camRateLimitTimer) {
+        clearTimeout(camRateLimitTimer);
+        camRateLimitTimer = null;
+      }
+      activeCamTier = tier;
+      activeCamFps = cfg.fps || 25;
+      sendCamControl(cfg.framesize, cfg.quality, cfg.fps, camMode);
+    }
+
+    function handleAdaptiveCamera(t) {
+      if (camMode === 'manual') return;
+
+      const gpsHealthy = (t && t.gpsok !== undefined) ? Boolean(t.gpsok) : false;
+      const dist = (t && t.hd !== undefined) ? Number(t.hd) : -1;
+      const rssi = (t && t.rssi !== undefined && t.rssi < 0) ? Number(t.rssi) : null;
+      const targetTier = computeTargetTier(activeCamTier, dist, gpsHealthy, rssi, camMode);
+
+      if (targetTier !== activeCamTier) {
+        pendingCamTier = targetTier;
+        const now = Date.now();
+        const elapsed = now - lastCamRequestTime;
+        if (elapsed >= CAM_RATE_LIMIT_MS && !camRequestInFlight) {
+          applyCamTier(targetTier);
+        } else if (!camRateLimitTimer && !camRequestInFlight) {
+          const waitMs = Math.max(50, CAM_RATE_LIMIT_MS - elapsed);
+          camRateLimitTimer = setTimeout(() => {
+            camRateLimitTimer = null;
+            if (camMode !== 'manual' && pendingCamTier && pendingCamTier !== activeCamTier) {
+              applyCamTier(pendingCamTier);
+            }
+          }, waitMs);
+        }
+      } else {
+        pendingCamTier = null;
+      }
+    }
+
+    // Camera Stream Management & Auto-Reconnect
     let camVisible = true;
+    function scheduleCamStreamReconnect(delayMs = 800) {
+      if (!camVisible) return;
+      if (camReconnectTimer !== null) return;
+      camReconnectTimer = setTimeout(() => {
+        camReconnectTimer = null;
+        if (camVisible) {
+          fpvStream.src = getCamStreamUrl();
+        }
+      }, delayMs);
+    }
+
     function requestCameraStream() {
       camVisible = true;
+      if (camReconnectTimer !== null) {
+        clearTimeout(camReconnectTimer);
+        camReconnectTimer = null;
+      }
       fpvStream.classList.remove('hidden');
       btnCam.textContent = 'CAM: WAIT';
       btnCam.className = 'badge badge-btn';
-      fpvStream.src = `http://192.168.4.2:81/stream?t=${Date.now()}`;
+      fpvStream.src = getCamStreamUrl();
     }
+
     btnCam.addEventListener('click', () => {
       if (!camVisible) {
         requestCameraStream();
-      } else if (/LOST|WAIT/.test(btnCam.textContent)) {
+      } else if (/LOST|WAIT|RETRYING/.test(btnCam.textContent)) {
         requestCameraStream();
       } else {
         camVisible = false;
+        if (camReconnectTimer !== null) {
+          clearTimeout(camReconnectTimer);
+          camReconnectTimer = null;
+        }
         fpvStream.classList.add('hidden');
         fpvStream.removeAttribute('src');
         btnCam.textContent = 'CAM: OFF';
@@ -706,14 +1100,20 @@
       }
     });
 
-    // Camera Reconnect Handler
+    // Camera Stream Error Handler with Auto-Reconnect (800ms)
     fpvStream.onerror = () => {
       if (!camVisible) return;
-      btnCam.textContent = 'CAM: LOST';
+      btnCam.textContent = 'CAM: RETRYING';
       btnCam.className = 'badge badge-btn off';
-      btnCam.title = 'Camera offline. Tap to retry.';
+      btnCam.title = 'Camera stream interrupted. Auto-retrying...';
+      scheduleCamStreamReconnect(800);
     };
+
     fpvStream.onload = () => {
+      if (camReconnectTimer !== null) {
+        clearTimeout(camReconnectTimer);
+        camReconnectTimer = null;
+      }
       if (camVisible) {
         btnCam.textContent = 'CAM: LIVE';
         btnCam.className = 'badge badge-btn';
@@ -735,7 +1135,7 @@
           heading = 360 - e.alpha;
         }
 
-        phoneHeading = Math.round((heading + 360) % 360);
+        phoneHeading = Math.round((heading + 360) % 360) % 360;
       };
 
       if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
@@ -753,7 +1153,7 @@
     }
     initPhoneOrientation();
 
-    // WebSocket Connection to S3
+    // WebSocket Connection to Controller
     function connectWS() {
       const controllerHost = hostInput.value.trim() || '192.168.4.1';
       const wsUrl = `ws://${controllerHost}/ws`;
@@ -824,6 +1224,8 @@
         lastTelemetry.hb = (lastTelemetry.hb + 0.5) % 360;
         lastTelemetry.rd = 3.8 + Math.sin(Date.now() / 1500) * 1.5;
         lastTelemetry.ra = 15;
+        lastTelemetry.rssi = Math.round(-62 + Math.sin(Date.now() / 3500) * 16);
+        liveCamFps = Number((24.2 + Math.sin(Date.now() / 2000) * 2.1).toFixed(1));
 
         // Simulate phone rotation if sensor unavailable on PC
         if (!phoneSensorActive) {
@@ -861,12 +1263,17 @@
       const fixNames = ['NO', '2D', '3D'];
       document.getElementById('val-fix').textContent = fixNames[t.fix] || 'NO';
       const radarSummary = t.rd && t.rd > 0 && t.rd < 8 ? `${t.rd.toFixed(1)}m` : 'OK';
+      const camSummary = getFramesizeName(activeCamFramesize);
       document.getElementById('compact-summary').innerHTML =
         `M ${vmVal}V ${pctVal}%/${curVal}A · L ${vlVal}V<br>` +
-        `GPS ${t.sat || 0}/${fixNames[t.fix] || 'NO'} · ${((t.spd || 0) / 100).toFixed(1)}m/s · HOME ${t.hd !== undefined ? t.hd.toFixed(0) : '--'}m · RAD ${radarSummary}`;
+        `GPS ${t.sat || 0}/${fixNames[t.fix] || 'NO'} · ${((t.spd || 0) / 100).toFixed(1)}m/s · HOME ${t.hd !== undefined ? t.hd.toFixed(0) : '--'}m · RAD ${radarSummary} · CAM ${camSummary} @ ${(liveCamFps > 0 ? liveCamFps.toFixed(0) : (activeCamFps || 25))}fps`;
       const health = (ok) => ok ? 'OK' : 'LOST';
       document.getElementById('sensor-health').textContent =
         `${health(t.gpsok)} / ${health(t.imuok)} / ${health(t.battok)} / ${health(t.radarok)}`;
+
+      // Update Adaptive Camera & UI Indicators
+      handleAdaptiveCamera(t);
+      updateCamUI();
 
       // Speed & Heading
       document.getElementById('val-spd').textContent = ((t.spd || 0) / 100).toFixed(1);
@@ -962,6 +1369,134 @@
     });
     hostInput.value = new URLSearchParams(window.location.search).get('boat') ||
       localStorage.getItem('boat-controller-host') || '192.168.4.1';
+
+    // Camera Settings Controls & Persistence
+    function applyCamHostChange() {
+      const host = camHostInput.value.trim();
+      if (!host) return;
+      localStorage.setItem('boat-cam-host', host);
+      camHost = host;
+      if (camVisible) {
+        requestCameraStream();
+      }
+    }
+    camHostInput.addEventListener('change', applyCamHostChange);
+    camHostInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        applyCamHostChange();
+        camHostInput.blur();
+      }
+    });
+
+    camScalingModeSelect.addEventListener('change', () => {
+      camMode = camScalingModeSelect.value;
+      localStorage.setItem('boat-cam-mode', camMode);
+
+      if (camMode === 'manual') {
+        camSelectRes.disabled = false;
+        camSelectQuality.disabled = false;
+        if (camSelectFps) camSelectFps.disabled = false;
+        if (camRateLimitTimer) {
+          clearTimeout(camRateLimitTimer);
+          camRateLimitTimer = null;
+        }
+        pendingCamTier = null;
+        const fs = Number(camSelectRes.value);
+        const q = Number(camSelectQuality.value);
+        const fps = Number(camSelectFps ? camSelectFps.value : 25);
+        sendCamControl(fs, q, fps, 'manual');
+      } else {
+        camSelectRes.disabled = true;
+        camSelectQuality.disabled = true;
+        if (camSelectFps) camSelectFps.disabled = true;
+        const gpsHealthy = (lastTelemetry && lastTelemetry.gpsok !== undefined) ? Boolean(lastTelemetry.gpsok) : false;
+        const dist = (lastTelemetry && lastTelemetry.hd !== undefined) ? Number(lastTelemetry.hd) : -1;
+        const rssi = (lastTelemetry && lastTelemetry.rssi !== undefined && lastTelemetry.rssi < 0) ? Number(lastTelemetry.rssi) : null;
+        const targetTier = computeTargetTier(1, dist, gpsHealthy, rssi, camMode);
+        applyCamTier(targetTier);
+      }
+      updateCamUI();
+    });
+
+    camSelectRes.addEventListener('change', () => {
+      const fs = Number(camSelectRes.value);
+      localStorage.setItem('boat-cam-res', String(fs));
+      if (camMode === 'manual') {
+        sendCamControl(fs, activeCamQuality, activeCamFps, 'manual');
+      }
+    });
+
+    camSelectQuality.addEventListener('input', () => {
+      const q = Number(camSelectQuality.value);
+      camQualityVal.textContent = String(q);
+      localStorage.setItem('boat-cam-quality', String(q));
+      if (camMode === 'manual') {
+        sendCamControl(activeCamFramesize, q, activeCamFps, 'manual');
+      }
+    });
+
+    if (camSelectFps) {
+      camSelectFps.addEventListener('input', () => {
+        const fps = Number(camSelectFps.value);
+        if (camFpsVal) camFpsVal.textContent = String(fps);
+        localStorage.setItem('boat-cam-fps', String(fps));
+        activeCamFps = fps;
+        if (camMode === 'manual') {
+          sendCamControl(activeCamFramesize, activeCamQuality, fps, 'manual');
+        }
+      });
+    }
+
+    function initCameraSettings() {
+      camHostInput.value = camHost;
+      camScalingModeSelect.value = camMode;
+      camSelectRes.value = String(camManualRes);
+      camSelectQuality.value = String(camManualQuality);
+      camQualityVal.textContent = String(camManualQuality);
+      if (camSelectFps) {
+        camSelectFps.value = String(camManualFps);
+        if (camFpsVal) camFpsVal.textContent = String(camManualFps);
+      }
+
+      if (camMode === 'manual') {
+        camSelectRes.disabled = false;
+        camSelectQuality.disabled = false;
+        if (camSelectFps) camSelectFps.disabled = false;
+        activeCamFramesize = camManualRes;
+        activeCamQuality = camManualQuality;
+        activeCamFps = camManualFps;
+        activeCamTier = getTierFromFramesize(camManualRes);
+      } else {
+        camSelectRes.disabled = true;
+        camSelectQuality.disabled = true;
+        if (camSelectFps) camSelectFps.disabled = true;
+        activeCamFramesize = 8;
+        activeCamQuality = 12;
+        activeCamFps = 25;
+        activeCamTier = 1;
+      }
+      updateCamUI();
+      if (camVisible) {
+        fpvStream.src = getCamStreamUrl();
+      }
+    }
+    initCameraSettings();
+
+    // Periodic status poll for live camera FPS & hardware status
+    setInterval(() => {
+      if (!camVisible) return;
+      const host = getCamBaseHost();
+      fetch(`http://${host}/status`, { mode: 'cors' })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            if (data.fps !== undefined) liveCamFps = Number(data.fps);
+            if (data.target_fps !== undefined && camMode !== 'manual') activeCamFps = Number(data.target_fps);
+            updateCamUI();
+          }
+        })
+        .catch(() => {});
+    }, 2000);
 
     // Tactical Radar Minimap Drawing (Both Boat & Phone Gyroscopes)
     function renderRadar() {
@@ -1220,6 +1755,12 @@
 
     // ARM Toggle Button
     btnArm.addEventListener('click', () => {
+      if (btnArm.classList.contains('estop-latched')) {
+        isArmed = false;
+        btnArm.classList.remove('estop-latched', 'armed');
+        labelArm.textContent = 'ARM';
+        return;
+      }
       isArmed = !isArmed;
       if (isArmed) {
         btnArm.classList.add('armed');
@@ -1233,15 +1774,15 @@
     // E-STOP Button
     btnEstop.addEventListener('click', () => {
       isEstop = true;
-      isArmed = false;
       btnArm.classList.remove('armed');
-      labelArm.textContent = 'ARM';
+      btnArm.classList.add('estop-latched');
+      labelArm.textContent = 'RESET E-STOP';
 
       alertToast.style.display = 'block';
       setTimeout(() => { alertToast.style.display = 'none'; }, 2000);
     });
 
-    // 25Hz Control TX Loop to S3 WebSocket (includes Phone Heading)
+    // 25Hz Control TX Loop to Controller WebSocket (includes Phone Heading)
     setInterval(() => {
       if (ws && ws.readyState === WebSocket.OPEN) {
         const packet = {

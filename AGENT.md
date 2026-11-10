@@ -47,23 +47,25 @@ boat-esp32-clusteer/
 ## Build & Flash Commands
 
 ```powershell
-# Build boat firmware
+# Build boat firmware (Windows: pio, Termux: tpio)
 pio run -e boat
+# In Termux: tpio run -e boat
 
 # Build camera firmware
 pio run -e cam
+# In Termux: tpio run -e cam
 
 # Flash boat controller (CP2102 UART bridge)
 .\deploy\flash_boat.ps1 -Monitor
+# In Linux/Termux: ./deploy/flash_boat.sh
 
 # Flash camera (IO0 bridged to GND)
 .\deploy\flash_cam.ps1 -Monitor
+# In Linux/Termux: ./deploy/flash_cam.sh
 
 # Flash both boards sequentially
 .\deploy\flash_all.ps1
-
-# Build the sensor-controller image
-tpio run -e boat
+# In Linux/Termux: ./deploy/flash_all.sh
 ```
 
 ### Run the HUD on the Phone

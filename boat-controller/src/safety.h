@@ -6,9 +6,11 @@
 #include <Arduino.h>
 #include "config.h"
 
-static uint8_t safetyMode   = MODE_MANUAL;
-static bool    safetyArmed  = false;
-static bool    safetyEstop  = false;
+static uint8_t safetyMode        = MODE_MANUAL;
+static bool    safetyArmed       = false;
+static bool    safetyEstop       = false;
+static bool    estopWasArmed     = false;
+static bool    estopArmAttempted = false;
 
 // --- Check arming conditions ---
 // Returns true only if GPS has enough satellites and fix quality
@@ -34,6 +36,9 @@ static uint8_t safetyProcess(
 ) {
     // --- E-STOP: highest priority, overrides everything ---
     if (estopCmd == 1) {
+        if (safetyArmed || armCmd == 1) {
+            estopWasArmed = true;
+        }
         safetyEstop = true;
         safetyArmed = false;
         safetyMode  = MODE_FAILSAFE;
@@ -42,10 +47,19 @@ static uint8_t safetyProcess(
     }
 
     // E-stop is latched until an explicit disarm packet arrives.
-    if (safetyEstop && armCmd == 0) {
-        safetyEstop = false;
-        safetyMode = MODE_MANUAL;
-        return MODE_MANUAL;
+    if (safetyEstop) {
+        if (armCmd == 1) {
+            estopArmAttempted = true;
+        } else if (armCmd == 0 && (estopWasArmed || estopArmAttempted)) {
+            safetyEstop       = false;
+            estopWasArmed     = false;
+            estopArmAttempted = false;
+            safetyMode        = MODE_MANUAL;
+            DBG("Safety: E-STOP cleared by explicit disarm");
+            return MODE_MANUAL;
+        }
+        safetyMode = MODE_FAILSAFE;
+        return MODE_FAILSAFE;
     }
 
     // --- ARM/DISARM ---

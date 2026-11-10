@@ -49,7 +49,7 @@ static void motorsMix(int16_t throttle, int16_t yaw) {
     yaw      = constrain(yaw,      -1000, 1000);
 
     // Apply deadband: if both near zero, go neutral
-    if (abs(throttle) < 30 && abs(yaw) < 30) {
+    if (abs(throttle) < ESC_DEADBAND && abs(yaw) < ESC_DEADBAND) {
         motorsSetNeutral();
         return;
     }

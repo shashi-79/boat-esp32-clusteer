@@ -43,13 +43,12 @@ static void radarParseFrame(const uint8_t* frame, uint8_t len) {
         int offset = 4 + (t * 8);
         if (offset + 7 >= len) break;
 
-        // X and Y are in mm, signed (center = 0)
-        int16_t x = (int16_t)(frame[offset] | (frame[offset + 1] << 8));
-        int16_t y = (int16_t)(frame[offset + 2] | (frame[offset + 3] << 8));
+        // X and Y are in mm, signed (center = 0, bit 15 = sign bit: 1 = negative)
+        uint16_t rawX = (uint16_t)frame[offset] | ((uint16_t)frame[offset + 1] << 8);
+        uint16_t rawY = (uint16_t)frame[offset + 2] | ((uint16_t)frame[offset + 3] << 8);
 
-        // LD2450 uses sign bit in bit 15: 1 = negative
-        if (x & 0x8000) x = -(x & 0x7FFF);
-        if (y & 0x8000) y = -(y & 0x7FFF);
+        int16_t x = (rawX & 0x8000) ? -(int16_t)(rawX & 0x7FFF) : (int16_t)rawX;
+        int16_t y = (rawY & 0x8000) ? -(int16_t)(rawY & 0x7FFF) : (int16_t)rawY;
 
         // Skip if target at origin (no detection)
         if (x == 0 && y == 0) continue;
@@ -73,21 +72,42 @@ static void radarParseFrame(const uint8_t* frame, uint8_t len) {
 static void radarUpdate() {
     while (RadarSerial.available()) {
         uint8_t b = RadarSerial.read();
+
+        // Synchronize on frame header: AA FF 03 00
+        if (radarIdx == 0) {
+            if (b == RADAR_HEADER[0]) radarBuf[radarIdx++] = b;
+            continue;
+        } else if (radarIdx == 1) {
+            if (b == RADAR_HEADER[1]) {
+                radarBuf[radarIdx++] = b;
+            } else {
+                radarIdx = (b == RADAR_HEADER[0]) ? 1 : 0;
+            }
+            continue;
+        } else if (radarIdx == 2) {
+            if (b == RADAR_HEADER[2]) {
+                radarBuf[radarIdx++] = b;
+            } else {
+                radarIdx = (b == RADAR_HEADER[0]) ? 1 : 0;
+            }
+            continue;
+        } else if (radarIdx == 3) {
+            if (b == RADAR_HEADER[3]) {
+                radarBuf[radarIdx++] = b;
+            } else {
+                radarIdx = (b == RADAR_HEADER[0]) ? 1 : 0;
+            }
+            continue;
+        }
+
+        // Header verified; buffer payload up to RADAR_FRAME_SIZE (30 bytes)
         radarBuf[radarIdx++] = b;
 
-        // Check for footer (end of frame)
-        if (radarIdx >= 2 &&
-            radarBuf[radarIdx - 2] == RADAR_FOOTER[0] &&
-            radarBuf[radarIdx - 1] == RADAR_FOOTER[1]) {
-
-            // Verify header
-            if (radarIdx == RADAR_FRAME_SIZE &&
-                radarBuf[0] == RADAR_HEADER[0] &&
-                radarBuf[1] == RADAR_HEADER[1] &&
-                radarBuf[2] == RADAR_HEADER[2] &&
-                radarBuf[3] == RADAR_HEADER[3]) {
-
-                radarParseFrame(radarBuf, radarIdx);
+        if (radarIdx == RADAR_FRAME_SIZE) {
+            // Check footer: 55 CC
+            if (radarBuf[RADAR_FRAME_SIZE - 2] == RADAR_FOOTER[0] &&
+                radarBuf[RADAR_FRAME_SIZE - 1] == RADAR_FOOTER[1]) {
+                radarParseFrame(radarBuf, RADAR_FRAME_SIZE);
                 radarLastFrameMs = millis();
             }
             radarIdx = 0;  // Reset for next frame

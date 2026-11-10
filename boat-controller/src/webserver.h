@@ -6,6 +6,7 @@
 
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
+#include <esp_wifi.h>
 #include "config.h"
 
 static AsyncWebServer server(WEB_PORT);
@@ -88,7 +89,10 @@ static void onWsEvent(AsyncWebSocket *srv, AsyncWebSocketClient *client,
                 !webPacketFieldInRange(doc["a"], 0, 1) ||
                 !webPacketFieldInRange(doc["e"], 0, 1) ||
                 !webPacketFieldInRange(doc["m"], MODE_MANUAL, MODE_RTH) ||
-                !webPacketFieldInRange(doc["ph"], 0, 359)) return;
+                !webPacketFieldInRange(doc["ph"], 0, 360)) return;
+
+            int ph = doc["ph"].as<int>();
+            if (ph >= 360) ph = 0;
 
             portENTER_CRITICAL(&controlMux);
             ctrlThrottle = doc["t"].as<int>();
@@ -98,7 +102,7 @@ static void onWsEvent(AsyncWebSocket *srv, AsyncWebSocketClient *client,
             ctrlArm      = doc["a"].as<int>();
             ctrlEstop    = doc["e"].as<int>();
             ctrlMode     = doc["m"].as<int>();
-            phoneHeading = doc["ph"].as<int>();
+            phoneHeading = ph;
             lastPhonePacketTime = millis();
             portEXIT_CRITICAL(&controlMux);
         }
@@ -111,6 +115,22 @@ static bool webIsPhoneConnected() {
            ((millis() - lastPhonePacketTime) < FAILSAFE_TIMEOUT_MS);
 }
 
+// --- Get Connected Station Signal Strength (RSSI in dBm) ---
+static int8_t webGetClientRssi() {
+    wifi_sta_list_t sta_list;
+    if (esp_wifi_ap_get_sta_list(&sta_list) == ESP_OK && sta_list.num > 0) {
+        // Return the lowest (weakest) RSSI among connected stations for link safety
+        int8_t min_rssi = 0;
+        for (int i = 0; i < sta_list.num; i++) {
+            if (i == 0 || sta_list.sta[i].rssi < min_rssi) {
+                min_rssi = sta_list.sta[i].rssi;
+            }
+        }
+        return min_rssi;
+    }
+    return 0; // 0 indicates unknown or no station connected
+}
+
 // --- Broadcast Live Telemetry to Phone at 5 Hz ---
 static void webSendTelemetry(
     uint16_t vMotorMv,
@@ -121,8 +141,8 @@ static void webSendTelemetry(
     uint8_t  fixType,
     int16_t  heading,
     int16_t  spdCmps,
-    float    lat,
-    float    lon,
+    double   lat,
+    double   lon,
     float    homeDist,
     int16_t  homeBearing,
     float    radarDist,
@@ -134,11 +154,12 @@ static void webSendTelemetry(
     bool batteryHealthy,
     bool radarHealthy,
     bool logicBatteryHealthy,
-    bool ina219Present
+    bool ina219Present,
+    int8_t   rssi = 0
 ) {
     if (wsocket.count() == 0) return;
 
-    StaticJsonDocument<288> doc;
+    StaticJsonDocument<512> doc;
     doc["vm"]  = vMotorMv;
     doc["vl"]  = vLogicMv;
     doc["cur"] = curMa;
@@ -161,8 +182,9 @@ static void webSendTelemetry(
     doc["radarok"] = radarHealthy;
     doc["logicok"] = logicBatteryHealthy;
     doc["ina"] = ina219Present;
+    doc["rssi"] = rssi;
 
-    char buf[384];
+    char buf[512];
     size_t len = serializeJson(doc, buf, sizeof(buf));
     wsocket.textAll(buf, len);
 }

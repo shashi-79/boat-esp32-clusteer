@@ -51,12 +51,18 @@ void setup() {
 
     // 1. Start Wi-Fi SoftAP for Phone and ESP32-CAM
     WiFi.mode(WIFI_AP);
+    IPAddress apIP(192, 168, 4, 1);
+    IPAddress apGW(192, 168, 4, 1);
+    IPAddress apSubnet(255, 255, 255, 0);
+    IPAddress dhcpStart(192, 168, 4, 10); // Reserve 192.168.4.2 for ESP32-CAM static IP
+    WiFi.softAPConfig(apIP, apGW, apSubnet, dhcpStart);
+
     bool apStarted = false;
     for (uint8_t attempt = 0; attempt < 3 && !apStarted; ++attempt) {
         apStarted = WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, WIFI_CHANNEL, 0, WIFI_MAX_CONN);
         if (!apStarted) delay(500);
     }
-    IPAddress apIP = WiFi.softAPIP();
+    apIP = WiFi.softAPIP();
     if (apStarted) {
         Serial.printf("[WIFI] SoftAP '%s' ready | IP: %s\n",
             WIFI_SSID, apIP.toString().c_str());
@@ -118,9 +124,13 @@ void loop() {
             batteryMotorReadingValid()
         );
 
-        // Record Home GPS coordinate upon ARM
-        if (safetyIsArmed() && !homeSet) {
-            gpsSetHome();
+        // Record Home GPS coordinate upon ARM, reset when disarmed
+        if (safetyIsArmed()) {
+            if (!homeSet) {
+                gpsSetHome();
+            }
+        } else {
+            gpsResetHome();
         }
 
         // Execute mode-based motor commands
@@ -195,7 +205,8 @@ void loop() {
             batteryMotorReadingValid(),
             radarIsHealthy(),
             batteryLogicReadingValid(),
-            batteryHasIna219()
+            batteryHasIna219(),
+            webGetClientRssi()
         );
     }
 

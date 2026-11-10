@@ -10,9 +10,9 @@ static TinyGPSPlus gps;
 static HardwareSerial GPSSerial(1);  // UART1
 
 // Home coordinates (set on ARM)
-static float homeLat = 0.0f;
-static float homeLon = 0.0f;
-static bool  homeSet = false;
+static double homeLat = 0.0;
+static double homeLon = 0.0;
+static bool   homeSet = false;
 static uint32_t gpsLastFixMs = 0;
 
 static void gpsSetup() {
@@ -24,20 +24,20 @@ static void gpsSetup() {
 static void gpsUpdate() {
     while (GPSSerial.available() > 0) {
         gps.encode(GPSSerial.read());
-        if (gps.location.isUpdated() && gps.location.isValid()) gpsLastFixMs = millis();
+        if (gps.location.isValid()) gpsLastFixMs = millis();
     }
 }
 
 // --- Getters ---
 static bool gpsHasFix() {
     return gps.location.isValid() && gps.satellites.value() >= ARM_MIN_SATS &&
-           gpsLastFixMs != 0 && millis() - gpsLastFixMs < 2000;
+           (gps.location.age() < 2000 || (gpsLastFixMs != 0 && millis() - gpsLastFixMs < 2000));
 }
 
-static float gpsLat()    { return gps.location.lat(); }
-static float gpsLon()    { return gps.location.lng(); }
-static uint8_t gpsSats() { return gps.satellites.value(); }
-static float gpsSpeed()  { return gps.speed.mps() * 100.0f; }  // cm/s
+static double gpsLat()    { return gps.location.lat(); }
+static double gpsLon()    { return gps.location.lng(); }
+static uint8_t gpsSats()  { return gps.satellites.value(); }
+static float  gpsSpeed()  { return gps.speed.mps() * 100.0f; }  // cm/s
 
 static uint8_t gpsFixType() {
     if (!gps.location.isValid()) return 0;
@@ -54,6 +54,12 @@ static void gpsSetHome() {
         DBG("GPS: Home set at %.6f, %.6f (%d sats)",
             homeLat, homeLon, gpsSats());
     }
+}
+
+static void gpsResetHome() {
+    homeSet = false;
+    homeLat = 0.0;
+    homeLon = 0.0;
 }
 
 // --- Haversine Distance to Home (meters) ---
